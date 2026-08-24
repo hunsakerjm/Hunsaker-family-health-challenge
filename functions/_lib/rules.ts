@@ -62,3 +62,27 @@ export async function loadAllRules(db: D1Database): Promise<Rule[]> {
     .all<RuleRow>()
   return (result.results ?? []).map(parseRuleRow)
 }
+
+export async function loadRuleById(db: D1Database, id: string): Promise<Rule | null> {
+  const row = await db
+    .prepare(`SELECT ${RULE_COLUMNS} FROM rules WHERE id = ?`)
+    .bind(id)
+    .first<RuleRow>()
+  return row ? parseRuleRow(row) : null
+}
+
+// Phase 3C (spec §5: "key ... stable slug; never reuse a retired key"). `rules.key` is UNIQUE in
+// the schema; checked proactively for the same reason as `isColorTakenByActiveUser` — a clean
+// {code,message} error instead of a driver-level constraint string.
+export async function isRuleKeyTaken(db: D1Database, key: string): Promise<boolean> {
+  const row = await db.prepare(`SELECT 1 FROM rules WHERE key = ? LIMIT 1`).bind(key).first()
+  return row !== null
+}
+
+/** New rules append to the end of the Rules list (spec §8.7 drag-to-reorder starting point). */
+export async function nextRuleSortOrder(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COALESCE(MAX(sort_order), 0) + 1 as next FROM rules`)
+    .first<{ next: number }>()
+  return row?.next ?? 1
+}

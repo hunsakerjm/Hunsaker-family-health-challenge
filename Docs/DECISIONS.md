@@ -183,3 +183,36 @@ any signature change, even though this one is additive/non-breaking.
 table).
 
 **Status:** RESOLVED.
+
+---
+
+### 2026-08-24 — Phase 3C Settings: six reversible scope decisions
+
+**Decision:** Six small implementation-detail choices, all reversible, all documented in
+`Docs/PHASE3C_LOG.md` in full — summarized here:
+
+1. Drag-reorder (people, rules) is repeated `PATCH .../:id {sort_order}` calls computed
+   client-side, not a new bulk-reorder endpoint — the published contract already carries
+   `sort_order` on both `UpdateUserRequest` and `UpdateRuleRequest`.
+2. "Adding mid-challenge sets `active_from` to that date" (§8.7) is a Settings-form default, not a
+   server default: the client sends `active_from: serverToday` only when `serverToday >
+   challenge_start`, otherwise omits it (since-challenge-start semantics unchanged). Always
+   forward-dated, so §4.4's backdating warning never applies to people.
+3. The rule-backdate confirm dialog's "how many past days it opens" (§4.4) is
+   `daysBetween(effective_from, serverToday)` — pure calendar arithmetic in `src/lib/dates.ts`, not
+   a count of existing `log_entries` rows.
+4. Changing `challenge_start`/`challenge_end` in Settings warns with descriptive text ("entries
+   outside the new window are hidden from standings, never deleted") rather than an exact affected-
+   row count, which would need a new aggregate endpoint outside the published §9 contract.
+5. Color-uniqueness (`ux_users_color_active`) is checked proactively with a `SELECT` before
+   INSERT/UPDATE in `functions/api/users/**`, not by catching the D1 unique-constraint error.
+6. Archiving a person defaults `active_to` to `serverToday` when the client omits it; setting
+   `status` back to `'active'` clears `active_to` unless the client supplies a new one — matches
+   §8.7's "archiving is reversible."
+
+**Rationale:** All six are implementation details the spec leaves open, cheap to reverse, and none
+change the wire contract in `src/types.ts`/`src/api.ts` that the 3A/3B tracks also depend on.
+
+**Spec ref:** §4.4, §6, §8.7, §9.
+
+**Status:** RESOLVED.
