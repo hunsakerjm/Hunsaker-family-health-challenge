@@ -34,6 +34,7 @@ import {
   type ThemeSurfaces,
 } from '../theme'
 import { compareDates, getMonthBoundaries, getMonthKey } from '../lib/dates'
+import { useAmbientMotion } from '../lib/useAmbientMotion'
 
 const HabitRadar = lazy(() => import('../components/charts/HabitRadar'))
 
@@ -289,6 +290,9 @@ function LeaderboardSection({
   const topPoints = entries.reduce((max, entry) => Math.max(max, entry.points_total), 0)
   const anyTie = entries.some((entry) => entry.tied)
   const kicker = tab === 'month' ? config.prize_monthly : 'Whole challenge'
+  // Ambient motion (spec §11.2): bars grow from zero on each fresh leaderboard fetch. Keyed on
+  // the response object itself so switching month/all-time (a new fetch, a new object) replays it.
+  const barMotion = useAmbientMotion(leaderboard.data)
 
   return (
     <div style={{ marginTop: 18 }}>
@@ -304,6 +308,9 @@ function LeaderboardSection({
               entry={entry}
               topPoints={topPoints}
               isFirst={index === 0}
+              staggerIndex={index}
+              ambientEnabled={barMotion.enabled}
+              ambientRevealed={barMotion.revealed}
             />
           ))
         )}
@@ -318,21 +325,38 @@ function LeaderboardSection({
 }
 
 const LEADERBOARD_BAR_HEIGHT = 4
+// Ambient motion (spec §11.2): each row's bar grows a beat after the one above it.
+const AMBIENT_BAR_STAGGER_STEP_MS = 60
+const AMBIENT_BAR_GROWTH_DURATION_MS = 700
 
 function LeaderboardRow({
   theme,
   entry,
   topPoints,
   isFirst,
+  staggerIndex = 0,
+  ambientEnabled = false,
+  ambientRevealed = true,
 }: {
   theme: ThemeSurfaces
   entry: LeaderboardEntry
   topPoints: number
   isFirst: boolean
+  /** Deleting `src/lib/useAmbientMotion.ts`: drop these three props here and at the call site,
+   *  then hardcode the bar's `width`/`transition` below back to their un-gated always-`barPercent`
+   *  / always-600ms-ease form. Nothing else in this row depends on them. */
+  staggerIndex?: number
+  ambientEnabled?: boolean
+  ambientRevealed?: boolean
 }) {
   const color = paletteEntryFor(entry.color_key).hex
   const isLeader = entry.rank === 1
   const barPercent = topPoints > 0 ? (entry.points_total / topPoints) * 100 : 0
+  const barWidthPercent = ambientEnabled && !ambientRevealed ? 0 : barPercent
+  const barTransition = ambientEnabled
+    ? `width ${AMBIENT_BAR_GROWTH_DURATION_MS}ms cubic-bezier(.16,1,.3,1) `
+      + `${staggerIndex * AMBIENT_BAR_STAGGER_STEP_MS}ms`
+    : 'width 600ms ease'
 
   return (
     <div
@@ -368,8 +392,8 @@ function LeaderboardRow({
         >
           <div
             style={{
-              width: `${barPercent}%`, height: '100%', background: color, borderRadius: 4,
-              transition: 'width 600ms ease',
+              width: `${barWidthPercent}%`, height: '100%', background: color, borderRadius: 4,
+              transition: barTransition,
             }}
           />
         </div>
@@ -410,6 +434,11 @@ function RibbonSection({
     ...row,
     emoji: emojiByUserId.get(row.user_id) ?? null,
   }))
+  // Ambient motion (spec §11.2): the whole ribbon wipes in left to right on each fresh month's
+  // data. `Ribbon` itself isn't a file this track owns, so the wipe wraps its rendered output
+  // rather than reaching into its per-row internals — deleting the hook drops this wrapper `div`
+  // (and the `ribbonMotion` line above it) with `<Ribbon .../>` unwrapped in its place.
+  const ribbonMotion = useAmbientMotion(ribbon.data)
 
   return (
     <div style={{ marginTop: 22 }}>
@@ -423,7 +452,16 @@ function RibbonSection({
           <p style={{ ...TYPE_SCALE.caption, color: theme.muted, margin: 0 }}>{ribbon.error}</p>
         </Card>
       ) : (
-        <Ribbon theme={theme} rows={rows} monthShortLabel={monthShortLabel(selectedMonth)} />
+        <div
+          style={{
+            clipPath: ribbonMotion.enabled && !ribbonMotion.revealed
+              ? 'inset(0 100% 0 0)'
+              : 'inset(0 0 0 0)',
+            transition: ribbonMotion.enabled ? 'clip-path 650ms cubic-bezier(.16,1,.3,1)' : 'none',
+          }}
+        >
+          <Ribbon theme={theme} rows={rows} monthShortLabel={monthShortLabel(selectedMonth)} />
+        </div>
       )}
       <p style={{ ...TYPE_SCALE.caption, color: theme.muted, marginTop: 8, lineHeight: 1.5 }}>
         One column per day, one segment per point. Consistency and collapse are visible without
