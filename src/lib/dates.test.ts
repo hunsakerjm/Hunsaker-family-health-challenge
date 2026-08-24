@@ -18,6 +18,7 @@ import {
   compareDates,
   computeServerTodayInTimezone,
   daysBetween,
+  formatDisplayDate,
   getEditableDateRange,
   getMonthBoundaries,
   getMonthKey,
@@ -296,5 +297,19 @@ describe('maxPointsForDate (spec §4.3) — never hardcode 6, 181, or 1086', () 
     const allRules = [...sixLaunchRules, newRule]
     expect(maxPointsForDate(allRules, '2026-10-31')).toBe(6)
     expect(maxPointsForDate(allRules, '2026-11-01')).toBe(7)
+  })
+})
+
+describe('formatDisplayDate (spec §8.3 banner date)', () => {
+  it('renders the exact written date, never shifted by a day', () => {
+    expect(formatDisplayDate('2026-09-09')).toBe('Wednesday, Sep 9')
+  })
+
+  it('renders correctly at a month boundary', () => {
+    expect(formatDisplayDate('2026-08-31')).toBe('Monday, Aug 31')
+  })
+
+  it('renders correctly at a year boundary', () => {
+    expect(formatDisplayDate('2027-01-01')).toBe('Friday, Jan 1')
   })
 })

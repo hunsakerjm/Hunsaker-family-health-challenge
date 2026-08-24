@@ -219,3 +219,25 @@ export function maxPointsForDate(rules: readonly RuleForMaxPoints[], date: strin
     .filter((rule) => isRuleEffectiveOnDate(rule, date))
     .reduce((total, rule) => total + maxPointsForRule(rule), 0)
 }
+
+// ---------------------------------------------------------------------------
+// Display formatting (spec §8.3: "Wednesday, Sep 9") — additive, no existing export touched.
+// ---------------------------------------------------------------------------
+
+// `timeZone: 'UTC'` here is deliberate, not a bug: `toEpochDay`/`fromEpochDay` above already
+// anchor every calendar date to UTC midnight internally, so formatting that same UTC instant with
+// an explicit UTC zone renders the calendar date exactly as written — the challenge timezone
+// never enters into it, because a calendar-date string has no timezone of its own to begin with.
+const WEEKDAY_MONTH_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'UTC',
+  weekday: 'long',
+  month: 'short',
+  day: 'numeric',
+})
+
+/** `"2026-09-09"` -> `"Wednesday, Sep 9"` (spec §8.3 banner date). */
+export function formatDisplayDate(date: string): string {
+  const { year, month, day } = parseDateString(date)
+  const instant = new Date(Date.UTC(year, month - 1, day))
+  return WEEKDAY_MONTH_DAY_FORMATTER.format(instant)
+}

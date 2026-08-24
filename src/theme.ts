@@ -96,6 +96,14 @@ export const PALETTE: Record<PersonColorKey, PaletteEntry> = {
   slate: { hex: '#7B8794', on: '#FFFFFF' },
 }
 
+// `users.color_key` (spec §5) is plain TEXT in the DB and `string` on `User` in types.ts — not
+// narrowed to `PersonColorKey` at the type level, since the server never validates it against the
+// palette either. Every screen that renders a person's color goes through this one safe lookup
+// rather than an unchecked `PALETTE[user.color_key]` cast repeated at each call site.
+export function paletteEntryFor(colorKey: string): PaletteEntry {
+  return PALETTE[colorKey as PersonColorKey] ?? PALETTE.slate
+}
+
 // ---------------------------------------------------------------------------
 // Color helpers (§11.1 "Derived color") — implement once, everything reuses these
 // ---------------------------------------------------------------------------

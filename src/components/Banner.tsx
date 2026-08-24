@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { ChevronLeft, ChevronRight, Lock } from 'lucide-react'
 import type { PersonSummary } from './person'
 import {
@@ -24,6 +25,9 @@ interface BannerProps {
   isFuture?: boolean
   onPrev: () => void
   onNext: () => void
+  /** Spec §3.2: "Changing later: Settings, or long-press the header avatar." Optional so
+   * DesignSystem.tsx's demo usage is unaffected — omit to leave the avatar inert. */
+  onAvatarLongPress?: () => void
 }
 
 const PADDING_TOP = 18
@@ -59,6 +63,7 @@ export function Banner({
   isFuture = false,
   onPrev,
   onNext,
+  onAvatarLongPress,
 }: BannerProps) {
   const base = PALETTE[person.color].hex
   const background = isOwn ? base : desat(base, theme)
@@ -89,6 +94,7 @@ export function Banner({
             points={points}
             max={max}
             on={on}
+            onAvatarLongPress={onAvatarLongPress}
           />
         </div>
         <div className="flex items-center gap-1" style={{ marginTop: NAV_ROW_MARGIN_TOP }}>
@@ -189,12 +195,16 @@ function BannerScore({
   points,
   max,
   on,
+  onAvatarLongPress,
 }: {
   person: PersonSummary
   points: number | null
   max: number
   on: string
+  onAvatarLongPress?: () => void
 }) {
+  const longPress = useLongPress(onAvatarLongPress)
+
   return (
     <div className="flex items-center gap-2">
       <div style={{ ...TYPE_SCALE.bannerScoreLarge, color: on }}>
@@ -203,6 +213,7 @@ function BannerScore({
       </div>
       <div
         className="flex items-center justify-center"
+        aria-label={onAvatarLongPress ? 'Switch person (hold)' : undefined}
         style={{
           width: EMOJI_BADGE_SIZE,
           height: EMOJI_BADGE_SIZE,
@@ -210,11 +221,44 @@ function BannerScore({
           background: EMOJI_BADGE_BG,
           fontSize: 17,
         }}
+        {...longPress}
       >
         {person.emoji}
       </div>
     </div>
   )
+}
+
+const LONG_PRESS_DURATION_MS = 550
+
+/** Spec §3.2's "long-press the header avatar" affordance. Returns pointer handlers to spread
+ * onto any element — a no-op set when `onLongPress` is omitted, so the avatar stays inert by
+ * default (DesignSystem.tsx's demo usage). */
+function useLongPress(onLongPress?: () => void) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function clearTimer() {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  if (!onLongPress) {
+    return {}
+  }
+
+  function handlePointerDown() {
+    clearTimer()
+    timerRef.current = setTimeout(() => onLongPress?.(), LONG_PRESS_DURATION_MS)
+  }
+
+  return {
+    onPointerDown: handlePointerDown,
+    onPointerUp: clearTimer,
+    onPointerLeave: clearTimer,
+    onPointerCancel: clearTimer,
+  }
 }
 
 function NavButton({
