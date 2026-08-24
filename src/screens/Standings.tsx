@@ -688,9 +688,10 @@ function MonthPickerRow({
     <button
       type="button"
       onClick={handleClick}
-      className="w-full text-left"
+      className="w-full text-left flex items-center"
       style={{
-        padding: '12px 6px',
+        minHeight: 44, // spec §11.1 quality floor: 44px minimum tap targets
+        padding: '0 6px',
         borderRadius: RADIUS.ruleRowIconTile,
         background: selected ? theme.surfaceAlt : 'transparent',
         border: 'none',
