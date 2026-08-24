@@ -229,7 +229,12 @@ async function createConfettiInstance(): Promise<ConfettiInstance> {
   // The dynamic import: canvas-confetti (~4KB gzipped) must never load on first paint, since the
   // Today screen is the ten-second-logging critical path. This is the only import site.
   const { default: confetti } = await import('canvas-confetti')
-  const instance = confetti.create(canvas, { resize: true, useWorker: true })
+  // useWorker: false because the CSP forbids blob: URLs (worker-src 'self'). canvas-confetti
+  // implements useWorker: true by creating a Web Worker from a blob URL, which the CSP blocks
+  // silently with no console error. Running on the main thread is negligible overhead for an
+  // animation capped at 1.2s with ~51 particles max. Do not change this back to true without
+  // also allowing blob: in worker-src — doing so will silently break all celebrations.
+  const instance = confetti.create(canvas, { resize: true, useWorker: false })
 
   document.addEventListener('visibilitychange', handleVisibilityChange(instance))
 

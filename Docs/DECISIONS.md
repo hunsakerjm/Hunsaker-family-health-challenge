@@ -431,3 +431,26 @@ Phase 3C) requires no changes — it already exists and is the everyday path.
 **Spec ref:** §12 ("Backups").
 
 **Status:** RESOLVED — manual on-demand backups are now the final design, documented in README.
+
+---
+
+### 2026-08-24 — Phase 4A CSP blocked canvas-confetti Web Workers; fix uses main thread
+
+**Decision:** Confetti celebrations rendered nothing in production due to a Content-Security-Policy
+conflict. The CSP directive `worker-src 'self'` (spec §12, `functions/_middleware.ts`) forbids
+`blob:` URLs, which `canvas-confetti` uses when initialized with `useWorker: true` (it constructs
+a Web Worker from a blob URL). In `src/lib/celebration.ts` line 232, changed `useWorker: true` to
+`useWorker: false`, keeping `resize: true`. Celebrations now run on the main thread instead. The
+performance overhead is negligible: animations are capped at ~1.2 seconds and ~51 particles max.
+
+**Rationale:** Adding `blob:` to `worker-src` was considered and rejected. iOS Safari historically
+falls back to `script-src` rather than honoring `worker-src` for workers; allowing `blob:` workers
+would require `script-src 'self' blob:` for full compatibility. Blob-URL scripts are a genuine XSS
+vector in an app holding family health data. Running confetti on the main thread avoids this
+security risk and works on every browser regardless of worker-src support. The change is also
+reversible: someone will otherwise optimize it back to `useWorker: true` without understanding the
+CSP constraint, so a detailed inline comment explains the "why" and warns against flipping it.
+
+**Spec ref:** §11.2 ("Celebration system"), §12 ("CSP restricted to 'self'").
+
+**Status:** RESOLVED.
