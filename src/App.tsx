@@ -14,11 +14,12 @@ import { TodayScreen } from './screens/Today'
 import { CalendarScreen } from './screens/Calendar'
 import { WeightDetailScreen } from './screens/WeightDetail'
 import { SettingsScreen } from './screens/Settings'
+import { StandingsScreen } from './screens/Standings'
 import { ThemeProvider, useTheme } from './components/ThemeProvider'
 import { BottomNav, type BottomNavItem } from './components/BottomNav'
 import { getBootstrap } from './api'
 import { getActiveUserId } from './lib/identity'
-import { paletteEntryFor, TYPE_SCALE, type ThemeSurfaces } from './theme'
+import { paletteEntryFor, type ThemeSurfaces } from './theme'
 import type { BootstrapResponse } from './types'
 
 // Phase 0 demo route, reachable in local dev only via direct navigation. Checked before any
@@ -351,6 +352,19 @@ function TabContent({
     )
   }
 
+  if (activeTab === 'standings') {
+    return (
+      <StandingsScreen
+        theme={theme}
+        config={bootstrap.config}
+        serverToday={bootstrap.serverToday}
+        rules={bootstrap.rules}
+        users={bootstrap.users}
+        ownUserId={activeUserId}
+      />
+    )
+  }
+
   if (activeTab === 'device') {
     return (
       <SettingsScreen
@@ -367,19 +381,4 @@ function TabContent({
       />
     )
   }
-
-  return <ComingSoonScreen theme={theme} />
-}
-
-// Today, Calendar, and Settings ("Device") are all wired up (Phase 2a, 3A, 3C). Standings (3B) is
-// still building in a parallel worktree — the nav stays fully visible per §8.3's wireframe, but
-// this placeholder is now reachable only from that one tab until 3B lands.
-function ComingSoonScreen({ theme }: { theme: ThemeSurfaces }) {
-  return (
-    <div className="flex items-center justify-center px-6" style={{ minHeight: '60vh' }}>
-      <p style={{ ...TYPE_SCALE.caption, color: theme.muted, textAlign: 'center' }}>
-        Standings arrives in a later phase.
-      </p>
-    </div>
-  )
 }
