@@ -123,6 +123,21 @@ Everything else is verified by walking spec §15 on a **physical iPhone**, not a
 at 390px. Safe areas, the emoji keyboard, haptics, and the install flow only behave correctly on
 the real device.
 
+## How this project delegates work
+
+Every agent orchestrating this repo must follow these rules:
+
+- **Delegate to the lowest capable model.** Haiku for mechanical or boilerplate edits; Sonnet when the work needs design sense or real judgment. Reserve the orchestrating model for planning, deconfliction, and review — not direct file I/O.
+- **Hand subagents extracted spec slices, not whole documents.** Spec §14 names the exact sections each phase needs. Extract those to a scratch file and pass that. Making thirteen agents each read the full 1,267-line spec plus the 1,151-line mockup was the single largest avoidable token cost of the initial build.
+- **Run parallel wherever the work allows**, but the orchestrator owns the end result — deconfliction, integration, and review are never delegated.
+- **Parallel agents MUST use isolated git worktrees.** Agents sharing one working directory had their `git checkout`s collide during Phases 0/1. Use `isolation: "worktree"`.
+- **The orchestrator owns shared files.** `src/App.tsx` and `package.json` are never edited by track agents; each reports the route path and import line it needs, and the orchestrator wires them at merge. This turned what would have been a three-way conflict into one trivial one.
+- **Give every agent explicit file ownership** — the paths it owns and the paths it must not touch.
+- **Agents commit to their branch at every milestone**, not just at the end, using `wip:` prefixes when incomplete. Session limits are real; uncommitted work is at risk.
+- **Keep `## Remaining` sections accurate** — rewrite them on each append so they never list work already finished. Stale Remaining sections actively mislead a cold restart.
+- **Verify with exit codes.** Check `$?` directly. Never `cmd | tail && echo ok` — `tail` exits 0 and masks a failing command. This pattern reported a clean typecheck while `tsc` was failing.
+- **When a shared interface is needed by parallel agents, pin it in both briefs.** The `types.ts` contract and the `playCelebration` signature both worked this way; an agent needing to change one must report it loudly, since the other has already written against it.
+
 ## Definition of done
 
 A phase is done when its spec §14 demo passes and every spec §15 checklist item touching that

@@ -6,9 +6,9 @@ This is the orchestrator's recovery file. If session context is cleared or token
 
 ## Current state
 
-**Overall status:** Phases 0, 1, and 2 COMPLETE — merged to `main`, deployed, verified in production at `https://hunsaker-family.com`. Logging works end to end. **Phase 3's three tracks (3A/3B/3C) are all unblocked and can run in parallel.** No users exist in the database yet (seed creates none, by design); adding people is Phase 3C Settings, or can be seeded directly via D1 on request.
-**Active branches:** `phase-1-foundation` (superseded by `phase-1b-contract`, not merged to `main`), `phase-1b-contract` (this pass, not merged), `phase-0-design` (concurrent, not merged)
-**Last updated:** 2026-08-24 01:30 UTC
+**Overall status:** Phases 0, 1, 2, and 3 COMPLETE — merged to `main`, deployed, verified in production at `https://hunsaker-family.com`. Every tab is wired (Today, Calendar, Standings, Settings). **Phase 4 (offline/PWA) and Phase 5 (launch readiness) are sequential — no parallel tracks remain.** Current state of the data: the database has **ZERO users**. The seed deliberately creates none (§5). Standings and Calendar will render empty until people are added through Settings (Phase 3C) or seeded directly via D1 on request. This is expected, not a bug.
+**Active branches:** None — all complete phases merged and deployed.
+**Last updated:** 2026-08-24 (Phase 3 merge and deploy verified)
 
 ## Owner inputs
 
@@ -28,11 +28,56 @@ All four spec §0 inputs are now resolved and recorded. No further owner questio
 | **Phase 0** Design system | `src/theme.ts`, `src/components/` (primitives), demo route | Nothing | `phase-0-design` | **DONE — merged + deployed** | Vite + React scaffold, fonts, theme provider, palette, `mix`/`tint`/`desat`. Demo: every primitive + 16 colors in both themes. |
 | **Phase 1** Foundation | `migrations/0001_schema.sql`, `migrations/0002_seed.sql`, `/api/auth/**`, `/api/bootstrap`, `/api/health`, date utilities, `src/types.ts`, `src/api.ts`, custom domain | Nothing (parallel with Phase 0) | `phase-1-foundation` + `phase-1b-contract` | **DONE — merged to `main` + deployed** | Pages project + D1 bindings + schema + seed (6 rules, config, no users) all live. PBKDF2 auth gate, HMAC session cookie, D1-backed rate limiting, host-lock middleware, `/api/bootstrap` all built and deployed to `hunsaker-family.pages.dev`. On `phase-1b-contract` (this pass): `src/types.ts` (full §9 request/response contract) and `src/api.ts` (one client fn per §9 endpoint) published; `src/lib/dates.ts` implements `serverToday`/date math/`maxPointsForDate`, shared by client and server (`functions/_lib/dates.ts` now re-exports it); `functions/_lib/scoring.ts` implements server-side scoring ahead of Phase 2's write route; `functions/api/bootstrap.ts` updated to emit the typed contract (parsed rule config, real booleans/numbers) — re-verified end-to-end locally, demo unaffected. 53 tests across the three Appendix B areas, all passing; `npx tsc --noEmit` and `npm run build` both clean. Custom domain, secrets, and production verification are all COMPLETE — see the infrastructure checklist. Deployed and verified at `https://hunsaker-family.com`. See `Docs/PHASE1_LOG.md` and `Docs/PHASE1B_LOG.md`. |
 | **Phase 2** Logging | Identity picker, Today screen, day nav, `/api/logs/:userId/:date`, own-vs-other treatment, celebration engine (§11.2) | Phase 0 + 1 | `phase-2-logging` | **DONE — merged + deployed**| **Critical path: MVP.** Identity picker with claimed/unclaimed states. Server-side scoring. Celebration escalation and settings. Splittable into 2a (screens/identity) and 2b (celebrations). |
-| **Phase 3A** Calendar + weight | Calendar month grid, pip meters, weight entry/correction, baseline, per-date weight screen | Phase 2 | `phase-3a-calendar-weight` | NOT STARTED | Per-date pip meters, unlogged vs. zero distinction, weight glyph, weight entry and correction, baseline designation. |
-| **Phase 3B** Standings | Leaderboard, ribbon, completion radar, consistency chart, weight-% tab, month filter, person toggles | Phase 2 | `phase-3b-standings` | NOT STARTED | **Highest visual risk.** Lazy-load route; Recharts must not touch Today screen. Tie handling, ribbon signature element. |
-| **Phase 3C** Settings | People manager, identity editor, rule editor with effective dates, config editor, password change, CSV export | Phase 2 | `phase-3c-settings` | NOT STARTED | Supports adding people, rules, changing config, all without redeploy. Backdating warnings for rules. |
+| **Phase 3A** Calendar + weight | Calendar month grid, pip meters, weight entry/correction, baseline, per-date weight screen | Phase 2 | `phase-3a-calendar-weight` | **DONE — merged + deployed** | Per-date pip meters, unlogged vs. zero distinction, weight glyph, weight entry and correction, baseline designation. |
+| **Phase 3B** Standings | Leaderboard, ribbon, completion radar, consistency chart, weight-% tab, month filter, person toggles | Phase 2 | `phase-3b-standings` | **DONE — merged + deployed** | Lazy-loaded route; Recharts isolated in a 96.23 kB gzip chunk, not touching Today screen. Tie handling and ribbon signature element working. |
+| **Phase 3C** Settings | People manager, identity editor, rule editor with effective dates, config editor, password change, CSV export | Phase 2 | `phase-3c-settings` | **DONE — merged + deployed** | People manager, rule editor with effective dates, config editor, password change, CSV export all deployed. No redeploy needed to add people or rules. |
 | **Phase 4** Offline / PWA | Manifest, icons, service worker, IndexedDB queue, `/api/sync/batch`, optimistic UI, safe areas, install hint, CSP/headers | Phase 2 (may start after 3A/3B/3C begin) | `phase-4-offline` | NOT STARTED | Full day in airplane mode syncs on reconnect. IndexedDB write queue. Optimistic UI with pending indicators. |
 | **Phase 5** Launch readiness | Ambient motion, month recap, D1 → R2 backup procedure, README, acceptance checklist | Phase 3 + 4 | `phase-5-launch` | NOT STARTED | Built last, removable. Scheduled backup to R2 + restore procedure. Full §15 checklist on real iPhone. |
+
+## Verification snapshot — Phase 3 complete and deployed
+
+**Test coverage:** 152 tests passing across 8 files (dates, server-side scoring, maxPointsForDate, and app integration suites).
+
+**Typecheck:** `npx tsc --noEmit` exits 0; `npx tsc --noEmit -p functions/tsconfig.json` exits 0.
+
+**Build:** `npm run build` exits 0.
+
+**Main bundle:** 78.93 kB gzip (31% of the 250KB §12 budget).
+
+**Recharts:** confirmed **0 references** in the main chunk; isolated in a lazy `HabitRadar-*.js` chunk at 96.23 kB gzip.
+
+**Canvas confetti:** in its own 4.20 kB gzip chunk.
+
+**Production API verification:**
+- Login: 200
+- `/api/bootstrap`: 200 (returns typed contract with correct `serverToday`)
+- `/api/users`: 200
+- `/api/rules`: 200
+- `/api/config`: 200
+- `/api/export.csv`: 200
+- All four `/api/stats/*` (with required params): 200
+- Stats without required `period`: clear 400 message
+- Stats with `period=month` without `month` param: clear 400 message
+- Unauthenticated stats requests: correctly 401
+- `hunsaker-family.pages.dev`: still 404 via host lock (correct)
+
+**Current state of the data:** The database has **ZERO users**. The seed deliberately creates none (spec §5). Standings and Calendar will render empty until people are added through Settings (Phase 3C) or seeded directly via D1 on request. This is expected, not a bug.
+
+## Next phase — Phase 4 (offline/PWA)
+
+Phase 4 owns the offline experience and PWA infrastructure per spec §14 and §10:
+- Manifest and icons for install
+- Service worker for offline operation
+- IndexedDB write queue for outbox durability
+- `/api/sync/batch` endpoint for batched syncs on reconnect
+- Optimistic UI with pending indicators
+- Safe areas for notch/Dynamic Island devices
+- Install hint for prompt timing
+- CSP and security headers (deferred decision needed — see "Open decisions")
+
+**Demo:** Full day logged in airplane mode syncs correctly on reconnect; pending log entries show pending state until confirmed.
+
+**Note:** Phase 4 is where the deferred `Content-Security-Policy` header decision must finally be made. It is currently deliberately unset due to the per-user color system. See DECISIONS.md and the open decisions list below.
 
 ## The shared contract
 
@@ -68,11 +113,9 @@ One-time Cloudflare setup from spec Appendix B:
 
 ### Open decisions, non-blocking
 
-- **Successful logins count against the rate limit.** A correct password is refused once an IP hits 10 attempts in 15 minutes. Fine at this threshold; change to reset-on-success if it ever annoys anyone. Two-line change in `functions/_lib/rateLimit.ts`.
-- **Preview deployments are unviewable.** The host lock 404s every hostname except `hunsaker-family.com`, so branch previews cannot be opened on a phone. Options: merge to `main` frequently (nobody uses the app until 2026-09-01, so broken intermediate states cost nothing), or relax the host lock in the preview environment only. Not yet decided.
-- **CSP header deferred.** `Content-Security-Policy` is deliberately not set — Phase 0's per-user color system may need inline styles. Phase 4 owns headers; decide there.
-- ~~**Phase 1 is not finished.**~~ RETIRED 2026-08-24 on `phase-1b-contract` — `src/types.ts`, `src/api.ts`, full `src/lib/dates.ts` with `maxPointsForDate`, `functions/_lib/scoring.ts`, and all three required test suites are published and passing. Still needed before merge to `main`: reconcile with `phase-1-foundation` and `phase-0-design`, then the orchestrator decides when Phase 2 opens.
-- **Spec/CLAUDE.md date inconsistency found while writing DST tests.** `2027-03-08` (named in CLAUDE.md and the spec as a DST transition to test) is a Monday and is not a real DST transition — the actual 2027 spring-forward is `2027-03-14`. Also, the challenge window ends `2027-02-28`, before either March date, so no spring transition actually falls inside the challenge. Not fixed here (out of this agent's scope) — `src/lib/dates.test.ts` tests both the named date and the real one; see its header comment and `Docs/PHASE1B_LOG.md`.
+- **Rate limit counts successful logins and is per-household-IP.** A correct password is refused once an IP hits 10 attempts in 15 minutes. Rate limit is per-household-IP (not per-person). Both behaviors are flagged as worth tuning before launch day. Two-line change in `functions/_lib/rateLimit.ts` if either needs adjustment.
+- **Preview deployments remain unviewable.** The host lock 404s every hostname except `hunsaker-family.com`, so branch previews cannot be opened on a phone. Workaround: merge to `main` frequently (nobody uses the app until 2026-09-01, so broken intermediate states cost nothing). Not yet decided whether to relax the host lock in the preview environment only.
+- **CSP header deferred.** `Content-Security-Policy` is deliberately not set — Phase 0's per-user color system may need inline styles. Phase 4 owns headers and must finally decide: strict CSP or none. See DECISIONS.md.
 
 ## Log
 
@@ -101,6 +144,8 @@ REMAINING: verify `canvas-confetti` splits into a lazy chunk and does not enter 
 **2026-08-23 17:45** — **Process fix needed.** Phases 0 and 1b ran as parallel agents sharing ONE working directory and `.git`. The second agent's `git checkout` moved the first agent's HEAD mid-run. No work was lost — file-ownership boundaries held and the two sets were cleanly separable — but future parallel agents MUST use `isolation: "worktree"` so each gets its own checkout. Do not run parallel agents in a shared tree again.
 
 **2026-08-23 17:44** — **Spec error found and corrected.** The spec and CLAUDE.md both named `2027-03-08` as a DST transition. It is a Monday. The real spring-forward is `2027-03-14` (second Sunday in March). CLAUDE.md corrected; tests cover both dates.
+
+**2026-08-24 02:45** — **Phase 3 COMPLETE, merged and deployed.** All three tracks (3A/3B/3C) ran in isolated worktrees with no collisions. Calendar + weight (3A), Standings with Recharts lazy-loaded (3B), and Settings with people/rule/config management (3C) all verified in production. 152 tests passing across 8 files. Main bundle 78.93 kB gzip (31% of budget). Recharts confirmed in separate 96.23 kB chunk; canvas-confetti in 4.20 kB chunk. Production API: login 200, all `/api/*` endpoints 200 with correct auth and validation. Standings and Calendar render empty (zero users in database — expected). All verification items recorded in snapshot above. Ready for Phase 4 (offline/PWA).
 
 **2026-08-24 01:30** — `phase-1b-contract` branch: published the spec §14 parallelism contract
 (`src/types.ts`, `src/api.ts`), the full `src/lib/dates.ts` (serverToday, challenge-timezone date
