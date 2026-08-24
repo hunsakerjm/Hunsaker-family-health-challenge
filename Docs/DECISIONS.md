@@ -343,3 +343,31 @@ percentage formula but is silent on the single-entry case; treating it as "no da
 "0% progress" matches how every other null case in this module is already read by callers, and
 avoids a person's first weigh-in ever displaying as a discouraging flat 0%. **Spec ref:** §8.6,
 §8.5 #5, §9. **Status:** RESOLVED.
+
+### 2026-08-24 — Phase 5B backups: manual export is the guaranteed path; scheduled Worker written but undeployed
+
+**Decision:** Spec §12 asks for "scheduled weekly D1 export to R2, or at minimum a documented
+manual `wrangler d1 export` procedure" and explicitly sanctions the manual path as acceptable.
+Verified against current Cloudflare docs
+([pages/functions/bindings](https://developers.cloudflare.com/pages/functions/bindings/),
+[workers/configuration/cron-triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/))
+that Pages Functions have no scheduled/cron handler today — Cron Triggers are documented only
+for standalone Workers via `[triggers]`/`crons` + a `scheduled()` handler. A scheduled export
+therefore requires a second, independently-deployed Worker with its own `wrangler.toml` and a
+new R2 bucket. Wrote that Worker in `backup/` (D1 -> R2, weekly, with retention pruning) but
+left it **entirely undeployed** — no R2 bucket created, no `wrangler deploy` run — since
+provisioning a new cloud resource and a second deployment is the owner's call, not a decision
+an agent makes silently. The manual `wrangler d1 export` / restore procedure documented in
+`README.md` is the one actually verified against the real production database (a scratch
+export was run to a path outside the repo and deleted immediately after inspection) and is the
+procedure to treat as load-bearing.
+
+**Rationale:** Spec §12's "or at minimum" is a real fork, not a fallback to apologize for; doing
+unrequested cloud provisioning to reach the "better" option would violate CLAUDE.md's scope
+discipline and the owner-approval bar for account changes. Writing the scheduled path's code
+without deploying it preserves the option at zero cost and zero risk.
+
+**Spec ref:** §12 ("Backups").
+
+**Status:** RESOLVED — manual procedure is live documentation; scheduled Worker is written,
+reviewed, and undeployed pending explicit owner action per `backup/README.md`.
