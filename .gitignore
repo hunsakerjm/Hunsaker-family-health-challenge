@@ -45,3 +45,6 @@ coverage/
 
 # --- Misc local scratch ---
 *.local
+
+# Agent worktrees — transient, never committed
+.claude/worktrees/
