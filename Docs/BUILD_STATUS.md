@@ -6,7 +6,7 @@ This is the orchestrator's recovery file. If session context is cleared or token
 
 ## Current state
 
-**Overall status:** Slice 0 **LIVE and verified in production** at `https://hunsaker-family.com` — password gate, session cookie, per-IP rate limiting, and host lock all confirmed by end-to-end tests. Phase 1 foundation plus the parallelism contract (`src/types.ts`, `src/api.ts`, `src/lib/dates.ts`, server-side scoring, three test suites) are now complete on `phase-1b-contract`. Phase 0 in progress concurrently on `phase-0-design`. Awaiting owner go-ahead / merge for the parallel build phases.
+**Overall status:** Phases 0 and 1 COMPLETE, merged to `main`, deployed and verified in production. All three contract files published — **the three Phase 3 tracks are unblocked.** Next up: Phase 2 (logging, the critical path), which gates Phase 3.
 **Active branches:** `phase-1-foundation` (superseded by `phase-1b-contract`, not merged to `main`), `phase-1b-contract` (this pass, not merged), `phase-0-design` (concurrent, not merged)
 **Last updated:** 2026-08-24 01:30 UTC
 
@@ -25,7 +25,7 @@ All four spec §0 inputs are now resolved and recorded. No further owner questio
 
 | Phase | Owns | Depends on | Branch | Status | Notes |
 |-------|------|-----------|--------|--------|-------|
-| **Phase 0** Design system | `src/theme.ts`, `src/components/` (primitives), demo route | Nothing | `phase-0-design` | NOT STARTED | Vite + React scaffold, fonts, theme provider, palette, `mix`/`tint`/`desat`. Demo: every primitive + 16 colors in both themes. |
+| **Phase 0** Design system | `src/theme.ts`, `src/components/` (primitives), demo route | Nothing | `phase-0-design` | **DONE — merged + deployed** | Vite + React scaffold, fonts, theme provider, palette, `mix`/`tint`/`desat`. Demo: every primitive + 16 colors in both themes. |
 | **Phase 1** Foundation | `migrations/0001_schema.sql`, `migrations/0002_seed.sql`, `/api/auth/**`, `/api/bootstrap`, `/api/health`, date utilities, `src/types.ts`, `src/api.ts`, custom domain | Nothing (parallel with Phase 0) | `phase-1-foundation` + `phase-1b-contract` | **CONTRACT PUBLISHED** | Pages project + D1 bindings + schema + seed (6 rules, config, no users) all live. PBKDF2 auth gate, HMAC session cookie, D1-backed rate limiting, host-lock middleware, `/api/bootstrap` all built and deployed to `hunsaker-family.pages.dev`. On `phase-1b-contract` (this pass): `src/types.ts` (full §9 request/response contract) and `src/api.ts` (one client fn per §9 endpoint) published; `src/lib/dates.ts` implements `serverToday`/date math/`maxPointsForDate`, shared by client and server (`functions/_lib/dates.ts` now re-exports it); `functions/_lib/scoring.ts` implements server-side scoring ahead of Phase 2's write route; `functions/api/bootstrap.ts` updated to emit the typed contract (parsed rule config, real booleans/numbers) — re-verified end-to-end locally, demo unaffected. 53 tests across the three Appendix B areas, all passing; `npx tsc --noEmit` and `npm run build` both clean. **Remaining gap:** custom domain / secrets status — see infrastructure checklist below (already marked done there; this row's earlier text was stale). See `Docs/PHASE1_LOG.md` and `Docs/PHASE1B_LOG.md`. |
 | **Phase 2** Logging | Identity picker, Today screen, day nav, `/api/logs/:userId/:date`, own-vs-other treatment, celebration engine (§11.2) | Phase 0 + 1 | `phase-2-logging` | NOT STARTED | **Critical path: MVP.** Identity picker with claimed/unclaimed states. Server-side scoring. Celebration escalation and settings. Splittable into 2a (screens/identity) and 2b (celebrations). |
 | **Phase 3A** Calendar + weight | Calendar month grid, pip meters, weight entry/correction, baseline, per-date weight screen | Phase 2 | `phase-3a-calendar-weight` | NOT STARTED | Per-date pip meters, unlogged vs. zero distinction, weight glyph, weight entry and correction, baseline designation. |
@@ -40,7 +40,7 @@ Before Phase 2 opens, Phase 1 must publish three files. Track agents (3A, 3B, 3C
 
 - [x] `src/types.ts` — every API request/response shape (§9) — published on `phase-1b-contract`
 - [x] `src/api.ts` — typed client with one function per endpoint (§9) — published on `phase-1b-contract`
-- [ ] `src/theme.ts` — tokens, palette, `mix`/`tint`/`desat` (§11.1) — Phase 0, in progress on `phase-0-design`
+- [x] `src/theme.ts` — tokens, palette, `mix`/`tint`/`desat` (§11.1) — Phase 0, in progress on `phase-0-design`
 
 ## Infrastructure checklist
 
@@ -75,6 +75,12 @@ One-time Cloudflare setup from spec Appendix B:
 - **Spec/CLAUDE.md date inconsistency found while writing DST tests.** `2027-03-08` (named in CLAUDE.md and the spec as a DST transition to test) is a Monday and is not a real DST transition — the actual 2027 spring-forward is `2027-03-14`. Also, the challenge window ends `2027-02-28`, before either March date, so no spring transition actually falls inside the challenge. Not fixed here (out of this agent's scope) — `src/lib/dates.test.ts` tests both the named date and the real one; see its header comment and `Docs/PHASE1B_LOG.md`.
 
 ## Log
+
+**2026-08-23 17:50** — Phases 0 and 1b merged to `main` (fast-forward) and deployed. Production verified: root/health/login 200, `/design-system` 200, `/api/bootstrap` returns the typed contract with correct `serverToday`, fonts served as `font/woff2`, `pages.dev` still 404. 53/53 tests pass; both typechecks clean; bundle 53.35 kB gzip.
+
+**2026-08-23 17:45** — **Process fix needed.** Phases 0 and 1b ran as parallel agents sharing ONE working directory and `.git`. The second agent's `git checkout` moved the first agent's HEAD mid-run. No work was lost — file-ownership boundaries held and the two sets were cleanly separable — but future parallel agents MUST use `isolation: "worktree"` so each gets its own checkout. Do not run parallel agents in a shared tree again.
+
+**2026-08-23 17:44** — **Spec error found and corrected.** The spec and CLAUDE.md both named `2027-03-08` as a DST transition. It is a Monday. The real spring-forward is `2027-03-14` (second Sunday in March). CLAUDE.md corrected; tests cover both dates.
 
 **2026-08-24 01:30** — `phase-1b-contract` branch: published the spec §14 parallelism contract
 (`src/types.ts`, `src/api.ts`), the full `src/lib/dates.ts` (serverToday, challenge-timezone date
