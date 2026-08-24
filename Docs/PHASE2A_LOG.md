@@ -24,18 +24,6 @@
 - Read functions/_lib/config.ts and functions/api/auth/login.ts for D1/error-response conventions
   to match in new routes.
 
-## Remaining
-- Build src/lib/identity.ts
-- Build src/lib/celebration.ts stub
-- Build functions/api/users/** (list/create/patch/claim)
-- Build functions/api/logs/** (GET range, PUT day)
-- Update functions/api/bootstrap.ts to return real users + current month logs
-- Build src/screens/Whoami.tsx
-- Build src/screens/Today.tsx
-- Wire routing in src/App.tsx
-- Manually seed local D1 test users (never via migration) to verify end-to-end
-- Tests, typecheck, build, verify gzip budget
-
 - RESUMED after session interruption. Previous work was committed as WIP at e78d0df (branch
   phase-2a-logging): all functions/_lib/{appConfig,audit,dateFormat,http,logs,rules,users}.ts,
   functions/api/logs/index.ts, functions/api/logs/[userId]/[date].ts, functions/api/users/index.ts,
@@ -93,3 +81,55 @@
   §12 budget (delta from Phase 1's 53.35 kB baseline: +10.27 kB gzip). Committing this clean state
   before adding the coordinator-requested CelebrationDemo import, since that file does not exist
   in this worktree yet and will break the build until merged with phase-2b-celebration.
+
+- End-to-end verification against local D1 (never touching production or migrations):
+  `npx wrangler d1 migrations apply health-challenge --local`, then manually inserted 2 test
+  users (test-josh unclaimed, test-marie pre-claimed) via `wrangler d1 execute --local`, started
+  `wrangler pages dev dist`, and exercised the full flow with curl against a temporary
+  `.dev.vars` (deleted after, never committed):
+  - POST /api/auth/login -> 200 + session cookie
+  - GET /api/bootstrap -> real users (Josh unclaimed, Marie claimed), 6 rules, serverToday correct
+  - POST /api/users/test-josh/claim -> 200, claimed_at set
+  - Temporarily moved local-only app_config.challenge_start earlier (restored after) since
+    serverToday falls before the real 2026-09-01 window in this dev environment, to exercise a
+    successful write
+  - PUT /api/logs/test-josh/<date> {values:{water:1}} -> points computed server-side (1/6),
+    canonical DayLogState returned
+  - A second PUT for a different rule -> canonical state correctly merges both rules (2/6)
+  - A PUT with a client-supplied `points` field alongside `values` -> points field silently
+    ignored, server recomputes from value only (confirms the hard rule: points never
+    client-supplied)
+  - Unchecking (value:0) -> row kept (day stays "logged"), points drop to 0 for that rule only
+  - PUT for a date outside the editable range -> 400 with the exact message naming the range
+  - GET /api/logs?user_id=&from=&to= -> correct 3-row range result
+  - GET /api/users -> both users, unauthenticated request -> 401
+  - Restored app_config.challenge_start to 2026-09-01 afterward; removed .dev.vars
+- FINAL STATE: 56/56 tests pass; `npx tsc --noEmit -p functions/tsconfig.json` clean;
+  `npx tsc --noEmit` has exactly one expected error (missing CelebrationDemo.tsx, pending
+  orchestrator merge with phase-2b-celebration — everything else typechecks); full clean build
+  (63.62 kB gzip) was verified and committed BEFORE the celebration-demo route was added, per the
+  coordinator's explicit request.
+- DONE. Committed at 845f0ed (core Phase 2a work) and e93c9f3 (celebration-demo route wiring,
+  intentionally incomplete pending merge).
+
+## Remaining
+
+Nothing outstanding for Phase 2a's own scope. Left for other phases/the orchestrator:
+- Merge phase-2b-celebration into this branch (or vice versa) to resolve src/lib/celebration.ts
+  (2b's real 373-line module wins) and add package.json's canvas-confetti dependency — see
+  App.tsx's CelebrationDemo import for the exact pending piece.
+- functions/api/users/index.ts only implements GET; POST (create) and PATCH (update) are
+  Phase 3C's Settings people-manager, not built here — see that file's header comment.
+- functions/api/weights/** does not exist — Today's weight row is visible per the wireframe but
+  opens a "coming soon" sheet; Phase 3A owns the real implementation (spec §8.6, §9).
+- The §4.4 "New: {rule} — starts today" one-time dismissible notice was not built (secondary to
+  the 10-second core flow; no seeded rule currently exercises a rule-start boundary near launch).
+- Known limitation: Today's row list uses bootstrap's "rules effective now" set for every viewed
+  date (day nav can cross a rule's effective-window boundary without the client knowing) — the
+  server (PUT /api/logs) always scores correctly regardless via functions/_lib/rules.ts's
+  unfiltered loadAllRules; only the client-side row list can be momentarily stale. Fixing this
+  fully would need a rules-by-date endpoint, which belongs to functions/api/rules/** (Phase 3C's
+  file ownership, not Phase 2a's).
+- Celebration contract conflict (see earlier log entry): orchestrator's literal instruction says
+  never celebrate a backfilled date; spec §11.2 says backfilling plays the full sequence. Followed
+  the orchestrator's literal instruction (gate on date === serverToday) — flagged for resolution.
