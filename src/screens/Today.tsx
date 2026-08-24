@@ -206,7 +206,11 @@ export function TodayScreen({
       const response = await putLog(viewedUserId, date, { [rule.key]: rawValue }, ownUserId)
       setLogsByMonth((prev) => replaceDayInCache(prev, cacheKey, date, response))
       const turnedOn = response.points_total > previousPointsTotal
-      if (isOwn && date === serverToday && turnedOn) {
+      // Spec §11.2: "Backfilling a past day plays the full sequence; it's the same
+      // accomplishment." So this is deliberately NOT gated on the date being today —
+      // only on the page being your own and the score actually going up. The
+      // once-per-tier-per-date dedup inside celebrateIfNewTier is what stops replays.
+      if (isOwn && turnedOn) {
         celebrateIfNewTier(response, pointerEvent)
       }
     } catch (error) {
