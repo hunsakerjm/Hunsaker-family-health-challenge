@@ -6,9 +6,7 @@ This is the orchestrator's recovery file. If session context is cleared or token
 
 ## Current state
 
-**Overall status:** Phase 1 vertical slice deployed — password gate + splash live on
-`hunsaker-family.pages.dev`, host-locked, D1 seeded. Awaiting owner to set two secrets and add the
-custom domain. See `Docs/PHASE1_LOG.md` for full detail and remaining gaps.  
+**Overall status:** Slice 0 **LIVE and verified in production** at `https://hunsaker-family.com` — password gate, session cookie, per-IP rate limiting, and host lock all confirmed by end-to-end tests. Phase 1 partially complete (contract files and date utilities still outstanding). Phase 0 not started. Awaiting owner go-ahead for the parallel build phases.  
 **Active branch:** `phase-1-foundation` (not merged to `main`)  
 **Last updated:** 2026-08-24 00:20 UTC
 
@@ -55,18 +53,33 @@ One-time Cloudflare setup from spec Appendix B:
 - [x] Create Pages project — `hunsaker-family`, created and deployed via CLI (`wrangler pages project create` / `wrangler pages deploy`). Live at `https://hunsaker-family.pages.dev` (host-locked, returns 404 — confirmed).
 - [x] Apply migrations locally: `npx wrangler d1 migrations apply health-challenge --local` (and `health-challenge-preview --env preview --local`)
 - [x] Apply migrations remotely: `npx wrangler d1 migrations apply health-challenge --remote` (and `health-challenge-preview --env preview --remote`)
-- [ ] Set secret `INITIAL_FAMILY_PASSWORD`: `npx wrangler pages secret put INITIAL_FAMILY_PASSWORD` — **PENDING, orchestrator's job.** Code fails safe (500, no detail) until set; confirmed no secrets currently set via `wrangler pages secret list`.
-- [ ] Set secret `SESSION_SECRET` (32+ random bytes, base64): `npx wrangler pages secret put SESSION_SECRET` — **PENDING, orchestrator's job.** Same fail-safe behavior.
-- [ ] Add apex custom domain `hunsaker-family.com` via Pages → Custom domains
-- [ ] Verify domain resolves and real URL loads on a phone over cellular
+- [x] Set secret `INITIAL_FAMILY_PASSWORD` — **DONE** 2026-08-23, production environment. Verified via `wrangler pages secret list`.
+- [x] Set secret `SESSION_SECRET` — **DONE** 2026-08-23, 32 random bytes via `openssl rand -base64 32`, production environment. Secrets bind at deploy time, so a redeploy was required after setting them.
+- [x] Add apex custom domain `hunsaker-family.com` via Pages → Custom domains
+- [x] Verify domain resolves and the real URL serves the gate — **DONE**. Full test matrix passed: root 200, `/api/health` 200, wrong password 401, correct password 200 + session cookie, `/api/bootstrap` 401 without cookie and 200 with, rate limit 429 at 10 attempts/IP, `pages.dev` 404, HSTS + nosniff + referrer-policy + noindex all present.
 
 ## Blockers / open questions
 
-- ~~**Cloudflare nameserver propagation.**~~ **RETIRED 2026-08-23.** `dig NS hunsaker-family.com` returns `clyde.ns.cloudflare.com` and `suzanne.ns.cloudflare.com` — delegation is live. No A record and no MX exist, confirming a clean apex.
-- **Token lacks `zone (write)`.** The wrangler OAuth token has `zone (read)` only. Creating the apex custom domain writes a DNS record, so the CLI will likely refuse it. **The owner must add the custom domain through the Cloudflare dashboard** (Pages → Custom domains). Every other infrastructure step in the checklist above is runnable from the CLI.
-- **Wrangler version drift.** Installed 4.73.0; latest is 4.125.0. Spec Appendix B warns the Pages/D1 CLI surface changes often — bump before running infrastructure commands.
+**All infrastructure blockers are retired.** Kept below for the record.
+
+- ~~**Cloudflare nameserver propagation.**~~ RETIRED — delegation live, apex A records now resolve (`104.21.56.177`, `172.67.187.92`).
+- ~~**Token lacks `zone (write)`.**~~ RETIRED — owner added the apex custom domain via the dashboard. Note for the future: the CLI still cannot write DNS, so any further DNS change is an owner dashboard task.
+- ~~**Wrangler version drift.**~~ RETIRED — upgraded to 4.125.0.
+
+### Open decisions, non-blocking
+
+- **Successful logins count against the rate limit.** A correct password is refused once an IP hits 10 attempts in 15 minutes. Fine at this threshold; change to reset-on-success if it ever annoys anyone. Two-line change in `functions/_lib/rateLimit.ts`.
+- **Preview deployments are unviewable.** The host lock 404s every hostname except `hunsaker-family.com`, so branch previews cannot be opened on a phone. Options: merge to `main` frequently (nobody uses the app until 2026-09-01, so broken intermediate states cost nothing), or relax the host lock in the preview environment only. Not yet decided.
+- **CSP header deferred.** `Content-Security-Policy` is deliberately not set — Phase 0's per-user color system may need inline styles. Phase 4 owns headers; decide there.
+- **Phase 1 is not finished.** `src/types.ts`, `src/api.ts`, full `src/lib/dates.ts` with `maxPointsForDate`, and the three required test suites are all still outstanding. The contract files must land before any Phase 3 track opens.
 
 ## Log
+
+**2026-08-23 17:25** — Slice 0 verified in production. Gate tests all pass: root 200, health 200, wrong password 401, correct password 200 + session cookie, bootstrap 401 without / 200 with cookie, rate limit 429 at 10 attempts per IP, pages.dev 404, all security headers present. Two deploys made (`415365d5` broken by the PBKDF2 cap, `61e38a5f` fixed). Branch `phase-1-foundation` pushed to origin, NOT merged to main.
+
+**2026-08-23 17:05** — PBKDF2 iterations reduced 600k to 100k (Workers platform cap threw NotSupportedError on every login). Owner approved. See DECISIONS.md.
+
+**2026-08-23 16:55** — Zone security configured by owner: SSL Full (strict), Always Use HTTPS, HSTS 6mo (no preload, no includeSubDomains), nosniff, Bot Fight Mode. WAF managed rules and edge rate limiting unavailable on the free plan — app-level rate limit carries that load.
 
 **2026-08-23 16:40** — Verified live environment: wrangler authenticated, `hunsaker-family.com` NS delegated to Cloudflare with no A/MX records. NS blocker retired; two new blockers logged (`zone (write)` scope, wrangler version).
 
