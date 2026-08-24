@@ -31,15 +31,31 @@ function extractHostname(hostHeader: string | null): string {
   return hostHeader.split(':')[0].toLowerCase()
 }
 
-// Non-functional baseline from spec §12. CSP is deliberately deferred — see
-// Docs/DECISIONS.md — until Phase 0's design system settles whether dynamic
-// per-user colors need inline style attributes, so a strict `default-src
-// 'self'` here doesn't silently break Phase 2/3 work later.
+// Non-functional requirements from spec §12 — security headers and CSP.
+// CSP tracks Phase 4A PWA shell. The design system uses 283 inline style
+// attributes throughout (verified via grep) to dynamically apply per-user
+// colors at runtime, so style-src requires 'unsafe-inline'. No inline scripts
+// are used; script-src stays 'self' only. (See Docs/DECISIONS.md Phase 4A entry.)
 function withBaselineSecurityHeaders(response: Response): Response {
   const headers = new Headers(response.headers)
   headers.set('X-Content-Type-Options', 'nosniff')
   headers.set('Referrer-Policy', 'no-referrer')
   headers.set('X-Robots-Tag', 'noindex')
+  headers.set(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "worker-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+    ].join('; ')
+  )
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
