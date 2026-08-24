@@ -59,3 +59,29 @@ export async function loadUserById(db: D1Database, id: string): Promise<User | n
     .first<UserRow>()
   return row ? parseUserRow(row) : null
 }
+
+// Phase 3C (spec §7, §8.7): the DB enforces uniqueness with
+// `CREATE UNIQUE INDEX ux_users_color_active ON users(color_key) WHERE status = 'active'`, but
+// checking this proactively before INSERT/UPDATE gives a clean {code,message} error instead of
+// string-matching a driver-level SQLITE_CONSTRAINT message (Docs/DECISIONS.md, 2026-08-24).
+// `excludeUserId` lets an update ignore the row's own current color when re-saving unrelated
+// fields — pass null when creating a brand new person.
+export async function isColorTakenByActiveUser(
+  db: D1Database,
+  colorKey: string,
+  excludeUserId: string | null,
+): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT 1 FROM users WHERE color_key = ? AND status = 'active' AND id != ? LIMIT 1`)
+    .bind(colorKey, excludeUserId ?? '')
+    .first()
+  return row !== null
+}
+
+/** New people append to the end of the People list (spec §8.7 drag-to-reorder starting point). */
+export async function nextUserSortOrder(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM users`)
+    .first<{ next: number }>()
+  return row?.next ?? 0
+}
