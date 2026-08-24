@@ -6,9 +6,9 @@ This is the orchestrator's recovery file. If session context is cleared or token
 
 ## Current state
 
-**Overall status:** Slice 0 **LIVE and verified in production** at `https://hunsaker-family.com` — password gate, session cookie, per-IP rate limiting, and host lock all confirmed by end-to-end tests. Phase 1 partially complete (contract files and date utilities still outstanding). Phase 0 not started. Awaiting owner go-ahead for the parallel build phases.  
-**Active branch:** `phase-1-foundation` (not merged to `main`)  
-**Last updated:** 2026-08-24 00:20 UTC
+**Overall status:** Slice 0 **LIVE and verified in production** at `https://hunsaker-family.com` — password gate, session cookie, per-IP rate limiting, and host lock all confirmed by end-to-end tests. Phase 1 foundation plus the parallelism contract (`src/types.ts`, `src/api.ts`, `src/lib/dates.ts`, server-side scoring, three test suites) are now complete on `phase-1b-contract`. Phase 0 in progress concurrently on `phase-0-design`. Awaiting owner go-ahead / merge for the parallel build phases.
+**Active branches:** `phase-1-foundation` (superseded by `phase-1b-contract`, not merged to `main`), `phase-1b-contract` (this pass, not merged), `phase-0-design` (concurrent, not merged)
+**Last updated:** 2026-08-24 01:30 UTC
 
 ## Owner inputs
 
@@ -26,7 +26,7 @@ All four spec §0 inputs are now resolved and recorded. No further owner questio
 | Phase | Owns | Depends on | Branch | Status | Notes |
 |-------|------|-----------|--------|--------|-------|
 | **Phase 0** Design system | `src/theme.ts`, `src/components/` (primitives), demo route | Nothing | `phase-0-design` | NOT STARTED | Vite + React scaffold, fonts, theme provider, palette, `mix`/`tint`/`desat`. Demo: every primitive + 16 colors in both themes. |
-| **Phase 1** Foundation | `migrations/0001_schema.sql`, `migrations/0002_seed.sql`, `/api/auth/**`, `/api/bootstrap`, `/api/health`, date utilities, `src/types.ts`, `src/api.ts`, custom domain | Nothing (parallel with Phase 0) | `phase-1-foundation` | **VERTICAL SLICE DEPLOYED** | Pages project + D1 bindings + schema + seed (6 rules, config, no users) all live. PBKDF2 auth gate, HMAC session cookie, D1-backed rate limiting, host-lock middleware, `/api/bootstrap` all built and deployed to `hunsaker-family.pages.dev`. **Gaps before this phase is fully done:** `src/types.ts`/`src/api.ts` contract not published (scoped out of this pass — needed before Phase 2 opens), custom domain not attached (owner does this, dashboard-only), `INITIAL_FAMILY_PASSWORD`/`SESSION_SECRET` secrets not set (orchestrator's job), no automated tests yet for date/scoring helpers (minimal date helper only; full `src/lib/dates.ts` + `maxPointsForDate` still needed). See `Docs/PHASE1_LOG.md`. |
+| **Phase 1** Foundation | `migrations/0001_schema.sql`, `migrations/0002_seed.sql`, `/api/auth/**`, `/api/bootstrap`, `/api/health`, date utilities, `src/types.ts`, `src/api.ts`, custom domain | Nothing (parallel with Phase 0) | `phase-1-foundation` + `phase-1b-contract` | **CONTRACT PUBLISHED** | Pages project + D1 bindings + schema + seed (6 rules, config, no users) all live. PBKDF2 auth gate, HMAC session cookie, D1-backed rate limiting, host-lock middleware, `/api/bootstrap` all built and deployed to `hunsaker-family.pages.dev`. On `phase-1b-contract` (this pass): `src/types.ts` (full §9 request/response contract) and `src/api.ts` (one client fn per §9 endpoint) published; `src/lib/dates.ts` implements `serverToday`/date math/`maxPointsForDate`, shared by client and server (`functions/_lib/dates.ts` now re-exports it); `functions/_lib/scoring.ts` implements server-side scoring ahead of Phase 2's write route; `functions/api/bootstrap.ts` updated to emit the typed contract (parsed rule config, real booleans/numbers) — re-verified end-to-end locally, demo unaffected. 53 tests across the three Appendix B areas, all passing; `npx tsc --noEmit` and `npm run build` both clean. **Remaining gap:** custom domain / secrets status — see infrastructure checklist below (already marked done there; this row's earlier text was stale). See `Docs/PHASE1_LOG.md` and `Docs/PHASE1B_LOG.md`. |
 | **Phase 2** Logging | Identity picker, Today screen, day nav, `/api/logs/:userId/:date`, own-vs-other treatment, celebration engine (§11.2) | Phase 0 + 1 | `phase-2-logging` | NOT STARTED | **Critical path: MVP.** Identity picker with claimed/unclaimed states. Server-side scoring. Celebration escalation and settings. Splittable into 2a (screens/identity) and 2b (celebrations). |
 | **Phase 3A** Calendar + weight | Calendar month grid, pip meters, weight entry/correction, baseline, per-date weight screen | Phase 2 | `phase-3a-calendar-weight` | NOT STARTED | Per-date pip meters, unlogged vs. zero distinction, weight glyph, weight entry and correction, baseline designation. |
 | **Phase 3B** Standings | Leaderboard, ribbon, completion radar, consistency chart, weight-% tab, month filter, person toggles | Phase 2 | `phase-3b-standings` | NOT STARTED | **Highest visual risk.** Lazy-load route; Recharts must not touch Today screen. Tie handling, ribbon signature element. |
@@ -38,9 +38,9 @@ All four spec §0 inputs are now resolved and recorded. No further owner questio
 
 Before Phase 2 opens, Phase 1 must publish three files. Track agents (3A, 3B, 3C) code against these and never against each other:
 
-- [ ] `src/types.ts` — every API request/response shape (§9)
-- [ ] `src/api.ts` — typed client with one function per endpoint (§9)
-- [ ] `src/theme.ts` — tokens, palette, `mix`/`tint`/`desat` (§11.1)
+- [x] `src/types.ts` — every API request/response shape (§9) — published on `phase-1b-contract`
+- [x] `src/api.ts` — typed client with one function per endpoint (§9) — published on `phase-1b-contract`
+- [ ] `src/theme.ts` — tokens, palette, `mix`/`tint`/`desat` (§11.1) — Phase 0, in progress on `phase-0-design`
 
 ## Infrastructure checklist
 
@@ -71,9 +71,25 @@ One-time Cloudflare setup from spec Appendix B:
 - **Successful logins count against the rate limit.** A correct password is refused once an IP hits 10 attempts in 15 minutes. Fine at this threshold; change to reset-on-success if it ever annoys anyone. Two-line change in `functions/_lib/rateLimit.ts`.
 - **Preview deployments are unviewable.** The host lock 404s every hostname except `hunsaker-family.com`, so branch previews cannot be opened on a phone. Options: merge to `main` frequently (nobody uses the app until 2026-09-01, so broken intermediate states cost nothing), or relax the host lock in the preview environment only. Not yet decided.
 - **CSP header deferred.** `Content-Security-Policy` is deliberately not set — Phase 0's per-user color system may need inline styles. Phase 4 owns headers; decide there.
-- **Phase 1 is not finished.** `src/types.ts`, `src/api.ts`, full `src/lib/dates.ts` with `maxPointsForDate`, and the three required test suites are all still outstanding. The contract files must land before any Phase 3 track opens.
+- ~~**Phase 1 is not finished.**~~ RETIRED 2026-08-24 on `phase-1b-contract` — `src/types.ts`, `src/api.ts`, full `src/lib/dates.ts` with `maxPointsForDate`, `functions/_lib/scoring.ts`, and all three required test suites are published and passing. Still needed before merge to `main`: reconcile with `phase-1-foundation` and `phase-0-design`, then the orchestrator decides when Phase 2 opens.
+- **Spec/CLAUDE.md date inconsistency found while writing DST tests.** `2027-03-08` (named in CLAUDE.md and the spec as a DST transition to test) is a Monday and is not a real DST transition — the actual 2027 spring-forward is `2027-03-14`. Also, the challenge window ends `2027-02-28`, before either March date, so no spring transition actually falls inside the challenge. Not fixed here (out of this agent's scope) — `src/lib/dates.test.ts` tests both the named date and the real one; see its header comment and `Docs/PHASE1B_LOG.md`.
 
 ## Log
+
+**2026-08-24 01:30** — `phase-1b-contract` branch: published the spec §14 parallelism contract
+(`src/types.ts`, `src/api.ts`), the full `src/lib/dates.ts` (serverToday, challenge-timezone date
+math, `maxPointsForDate`, shared client/server via `functions/_lib/dates.ts` re-export), and
+`functions/_lib/scoring.ts` (server-side scoring, ahead of Phase 2's write route). Updated
+`functions/api/bootstrap.ts` to emit the typed contract instead of raw DB rows. 53 automated
+tests across all three Appendix B areas (date math + DST, server-side scoring, maxPointsForDate),
+all passing. `npx tsc --noEmit` (root and `functions/`) and `npm run build` both clean.
+Re-verified the §14 Phase 1 demo end-to-end locally (temporary `.dev.vars`, deleted after) —
+login, bootstrap with correct `serverToday` and 6 rules, 401 without a session — unaffected.
+Added `vitest` devDependency and `test` script to `package.json`, additive-only (working
+alongside the concurrent Phase 0 agent in the same tree; did not touch `src/theme.ts`,
+`src/components/`, `src/screens/**`, `src/App.tsx`, or `src/index.css`). Found and flagged a
+spec/CLAUDE.md date error: 2027-03-08 is not a real DST transition (real one is 2027-03-14). See
+`Docs/PHASE1B_LOG.md` for full detail. Not committed — per instructions, orchestrator merges.
 
 **2026-08-23 17:25** — Slice 0 verified in production. Gate tests all pass: root 200, health 200, wrong password 401, correct password 200 + session cookie, bootstrap 401 without / 200 with cookie, rate limit 429 at 10 attempts per IP, pages.dev 404, all security headers present. Two deploys made (`415365d5` broken by the PBKDF2 cap, `61e38a5f` fixed). Branch `phase-1-foundation` pushed to origin, NOT merged to main.
 

@@ -53,8 +53,10 @@ config change).
 - **All date math goes through `src/lib/dates.ts`, in the challenge timezone.** Never
   `new Date('2026-09-01')` (parses as UTC and shifts backward in the Americas). "Today" comes
   from the server (`serverToday` in `/api/bootstrap`), never `new Date()` on the client (spec §6).
-  DST is the known trap: `America/Los_Angeles` shifts on **2026-11-01** and **2027-03-08** — test
-  both.
+  DST is the known trap: `America/Los_Angeles` shifts on **2026-11-01** (first Sunday in November,
+  fall back) and **2027-03-14** (second Sunday in March, spring forward) — test both. Note the spec
+  and earlier drafts name `2027-03-08`; that is a **Monday** and not a transition. The spec is wrong
+  here; do not copy that date.
 - **Points are snapshotted at write time** into `log_entries.points`, server-computed, never
   client-supplied. Changing a rule later does not silently rewrite history (spec §4.3).
 - **PBKDF2 iterations capped at 100,000 by Workers runtime** — do not raise toward spec §3.1's
