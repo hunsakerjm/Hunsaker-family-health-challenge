@@ -13,7 +13,10 @@
  * in-page IndexedDB queue and Track 4B's sync endpoint (spec §10).
  */
 
-const CACHE_VERSION = 'v1'
+// Bumped to v2 when the app icons were replaced. The icon filenames did not change, so without
+// a change to this file the browser sees no service-worker update and keeps serving the old
+// precached icons forever. Bump this whenever a precached asset changes without its name changing.
+const CACHE_VERSION = 'v2'
 const CACHE_NAME = `health-challenge-${CACHE_VERSION}`
 
 // Required shell entries (fail the install if these are missing)

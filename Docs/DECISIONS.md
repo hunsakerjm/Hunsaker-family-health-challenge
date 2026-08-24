@@ -454,3 +454,30 @@ CSP constraint, so a detailed inline comment explains the "why" and warns agains
 **Spec ref:** §11.2 ("Celebration system"), §12 ("CSP restricted to 'self'").
 
 **Status:** RESOLVED.
+
+### 2026-08-24 — Confetti launch retuned, and the app icon replaced with the owner's artwork
+
+**Decision — the mockup's confetti velocity numbers were a unit mismatch, not a design intent, and
+have been remapped to canvas-confetti's scale using values the owner tuned on a physical device:
+`TIER_VELOCITY_BASE = 18`, `TIER_VELOCITY_RANGE = 15`, a constant `CONFETTI_SPREAD_DEGREES = 90`,
+and a new `CONFETTI_GRAVITY = 0.5`.** `Docs/HealthChallengeMockup.jsx` defines
+`velocity: 4.5 + Math.pow(ratio, 1.8) * 9` for its own hand-written particle loop, where the value
+is pixels per frame (`vx = Math.cos(a) * v`). Phase 2b passed those numbers straight into
+canvas-confetti's `startVelocity`, whose default is 45 and which applies its own gravity and decay,
+so the launch was roughly a tenth of what the design intended and particles fell out of the tap
+rather than leaping from it. Gravity was never passed at all and defaulted to 1. **Rationale:** the
+repo rule that the mockup wins on visual detail governs the *curve*, which is unchanged and still
+convex; this corrects a porting error in the units that curve was expressed in. The spread range
+was set to 0 by owner preference, making the cone a constant 90 degrees — escalation now rides on
+count, velocity, burst count, and the gold palette. The parameterless form is simpler and the
+widening cone can be restored by reintroducing a range term. **Spec ref:** §11.2. **Status:**
+RESOLVED — verified by the owner on an interactive tuning page before the values were applied.
+
+**Decision — the app icons are generated from owner-supplied artwork at `assets/icon-source.jpg`
+by `scripts/generate-icons.sh`, replacing the previously generated checkmark mark.** The Python
+Pillow generator was deleted; `sips` is used instead because Pillow cannot load on the owner's
+machine (x86_64 native module on arm64). `public/sw.js`'s `CACHE_VERSION` was bumped to `v2` in the
+same change: the icon filenames did not change, so without a byte change to the service worker the
+browser would see no update and keep serving the old precached icons indefinitely. **Rationale:**
+owner's artwork, owner's call. **Spec ref:** §10 (manifest and icons). **Status:** RESOLVED.
+

@@ -132,10 +132,16 @@ export function shouldCelebrate(logDate: string, ratio: number): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// The escalation curve — BINDING per the approved mockup (repo CLAUDE.md: mockup wins on visual
-// detail; this curve is called out by name in the mockup's own header comment as one of the
-// things that is binding, not illustrative). Convex on purpose: bottom tiers fire every day for
-// six months and must be nearly nothing; the budget is spent at the top. §11.2.
+// The escalation curve. Its SHAPE still follows the approved mockup (repo CLAUDE.md: mockup wins
+// on visual detail) — convex on purpose, because bottom tiers fire every day for six months and
+// must be nearly nothing while the budget is spent at the top. §11.2.
+//
+// Its velocity SCALE does not, and deliberately so. The mockup's `velocity: 4.5 + ...` feeds its
+// own hand-written particle loop, where the number is pixels per frame (`vx = cos(a) * v`).
+// Phase 2b passed those same numbers to canvas-confetti's `startVelocity`, whose default is 45
+// and which applies its own gravity and decay — roughly a tenth of the intended launch, so the
+// confetti fell out of the tap instead of leaping from it. The values below are the corrected
+// mapping into canvas-confetti's units, tuned by the owner on a physical device.
 // ---------------------------------------------------------------------------
 
 interface CelebrationTierShape {
@@ -149,12 +155,15 @@ interface CelebrationTierShape {
 const TIER_COUNT_BASE = 5
 const TIER_COUNT_RANGE = 46
 const TIER_COUNT_EXPONENT = 2.2
-const TIER_SPREAD_BASE_DEGREES = 28
-const TIER_SPREAD_RANGE_DEGREES = 62
-const TIER_SPREAD_EXPONENT = 1.6
-const TIER_VELOCITY_BASE = 4.5
-const TIER_VELOCITY_RANGE = 9
+// A constant cone at every tier, owner's call after tuning on a device. Escalation still rides
+// on count, launch velocity, burst count, and the gold palette — it just no longer widens.
+const CONFETTI_SPREAD_DEGREES = 90
+const TIER_VELOCITY_BASE = 18
+const TIER_VELOCITY_RANGE = 15
 const TIER_VELOCITY_EXPONENT = 1.8
+// canvas-confetti defaults gravity to 1, which drops particles almost straight back down. Half
+// gravity lets them rise and hang, which is what makes a burst read as a burst.
+const CONFETTI_GRAVITY = 0.5
 
 // Floating-point safety margin for "ratio is effectively 1.0" (a perfect day).
 const TOP_TIER_RATIO_THRESHOLD = 0.999
@@ -163,7 +172,7 @@ const GENEROUS_TIER_RATIO_THRESHOLD = 0.8
 function tierForRatio(ratio: number): CelebrationTierShape {
   return {
     count: Math.round(TIER_COUNT_BASE + Math.pow(ratio, TIER_COUNT_EXPONENT) * TIER_COUNT_RANGE),
-    spread: TIER_SPREAD_BASE_DEGREES + Math.pow(ratio, TIER_SPREAD_EXPONENT) * TIER_SPREAD_RANGE_DEGREES,
+    spread: CONFETTI_SPREAD_DEGREES,
     velocity: TIER_VELOCITY_BASE + Math.pow(ratio, TIER_VELOCITY_EXPONENT) * TIER_VELOCITY_RANGE,
     bursts: burstsForRatio(ratio),
     gold: ratio >= TOP_TIER_RATIO_THRESHOLD,
@@ -291,6 +300,7 @@ function scheduleBurst(
       origin,
       colors: palette,
       ticks,
+      gravity: CONFETTI_GRAVITY,
       zIndex: CANVAS_Z_INDEX,
     })
   }, delayMs)
