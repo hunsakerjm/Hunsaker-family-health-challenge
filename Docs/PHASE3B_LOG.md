@@ -5,13 +5,11 @@ Resilience file per orchestrator brief: append a timestamped line after every di
 
 ## Remaining
 
-- Install `recharts`, verify it lazy-loads (separate chunk, never in Today's bundle).
-- `src/components/charts/HabitRadar.tsx` (recharts, React.lazy-loaded only from Standings.tsx).
-- `src/components/charts/Ribbon.tsx` (plain divs, no recharts — matches mockup).
-- `src/screens/Standings.tsx` — leaderboard, ribbon, radar + person toggles, consistency widget,
-  weight tab, month segmented control + month-picker sheet.
-- `npm run build` — capture chunk list as evidence of the Recharts split, check gzip budget.
-- Final report: exact route/import line for App.tsx, verification output.
+Nothing outstanding for this track. Phase 3B is feature-complete and verified (tests, both
+typechecks, build, Recharts-split proof all green — see the final log entry below). Handoff to
+the orchestrator: wire `<StandingsScreen>` into `src/App.tsx`'s `standings` tab (exact import line
+and prop list in the final report) — that is the ONE remaining step, and it belongs to the
+orchestrator per file ownership, not this track.
 
 ## Log
 
@@ -85,3 +83,40 @@ categories Appendix B and this track's brief call out) and `functions/_lib/stats
 (leaderboard/rules/ribbon/weight SQL) is NOT unit-tested with a mock D1 — matches this repo's
 existing convention (no other route in the codebase has DB-mock tests either; CLAUDE.md scopes
 automated tests to pure logic, everything else to the spec §15 physical-device walkthrough).
+
+**2026-08-24 06:10** — Built `src/components/charts/Ribbon.tsx` (plain divs, no recharts — per-day
+segment count derived from that day's own `max_points_for_date`, never hardcoded; three visual
+states: not-offered-that-day / ineligible / eligible-unlogged / logged, tap-to-select detail panel
+below the strip) and `src/components/charts/HabitRadar.tsx` (the only file under `src/` that
+imports `recharts`; default export so `React.lazy` can resolve it). Built `src/screens/Standings.tsx`
+(leaderboard with T-prefix ties and footnote, ribbon section pinned to a single selected month
+regardless of the month/all-time tab, radar behind `Suspense`+`React.lazy` with own-person-on-by-
+default toggles and 0.32/0.20/0.10 fill-opacity thinning, consistency widget, weight tab, month
+segmented control whose first label IS the month name and re-taps into a month-picker `Sheet`).
+`npx tsc --noEmit` clean after one fix (Recharts `Tooltip` formatter's value/name types needed
+`String()` coercion, not a bare `number`/`string` annotation).
+
+**2026-08-24 06:20** — Verified the Recharts split concretely, since App.tsx (orchestrator-owned)
+doesn't reference `Standings.tsx` yet so the real build wouldn't otherwise exercise the lazy path.
+Backed up `src/App.tsx`, temporarily wired `<StandingsScreen>` into the `standings` tab locally,
+ran `npm run build`, captured the chunk list, then restored the original `src/App.tsx` from the
+backup and confirmed `git diff --stat src/App.tsx` is empty (the file was never actually touched
+in this branch's history). Evidence:
+
+```
+dist/assets/confetti.module-BYDB1iN2.js   10.57 kB │ gzip:  4.20 kB
+dist/assets/index-CazeTn52.js            208.35 kB │ gzip: 66.52 kB
+dist/assets/HabitRadar-p6MVmcgt.js       332.01 kB │ gzip: 96.23 kB
+```
+`grep -c recharts dist/assets/index-*.js` → 0. `grep -c recharts dist/assets/HabitRadar-*.js` → 14.
+Main bundle with Standings wired in: 66.52 kB gzip (vs 62.74 kB unwired, i.e. Phase 2's baseline —
+Standings.tsx's own non-chart code costs ~3.8 kB gzip). Both numbers are far under the §12 250KB
+budget. Rebuilt again afterward with the real (unwired) `App.tsx` to confirm the committed state:
+62.74 kB gzip main bundle, byte-for-byte the Phase 2 number — proof this track adds nothing to the
+Today critical path until the orchestrator wires the route in.
+
+**2026-08-24 06:25** — Fixed one 44px-minimum-tap-target gap found on review: the month-picker
+sheet's row used padding that landed a couple px short; switched to an explicit `minHeight: 44`
+(spec §11.1 quality floor). Final full verification: `npx tsc --noEmit` exit 0, `npx tsc --noEmit
+-p functions/tsconfig.json` exit 0, `npx vitest run` 102/102 passing exit 0, `npm run build` exit 0.
+Phase 3B is done pending the orchestrator's App.tsx wiring (route/import line in the final report).

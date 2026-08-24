@@ -183,3 +183,51 @@ any signature change, even though this one is additive/non-breaking.
 table).
 
 **Status:** RESOLVED.
+
+---
+
+### 2026-08-24 — Phase 3B Standings: mockup/spec conflicts and reversible calls
+
+**Decision (1 of 5) — radar completion-rate denominator.** Uses `eligible_days` (days the rule was
+effective AND the user was active), per `RuleStatsEntry`'s own doc comment in `src/types.ts`, not
+the mockup's simpler `days.length` (days the person actually logged anything). **Rationale:** the
+denominator is a behavior decision; CLAUDE.md's precedence rule gives behavior to the spec/contract
+over the mockup's illustrative demo data, and `types.ts` is itself the already-resolved parallelism
+contract from Phase 1b. **Spec ref:** §8.5 #3, `src/types.ts` `RuleStatsEntry`. **Status:** RESOLVED.
+
+**Decision (2 of 5) — a real Consistency widget, which the mockup never built.** Spec §8.5 #4
+requires "days logged and average points per logged day, per person" as its own widget; the
+mockup's `StandingsScreen` computes `days`/`avg` internally but never renders them anywhere. Built
+it (in the mockup's visual language — Card/SectionTitle/mono numerals), reusing the leaderboard
+response's existing per-entry fields rather than a new endpoint. **Rationale:** an entire required
+widget is a behavior gap, not a visual nuance, so the spec wins. **Spec ref:** §8.5 #4.
+**Status:** RESOLVED.
+
+**Decision (3 of 5) — ties are general, not leader-only.** The mockup's tie handling only special-
+cases a tie at rank 1 (`tie = totals.filter(t => t.pts === top).length > 1`); a tie at any other
+rank silently renders as untied, sequential positions in the demo. Implemented general standard-
+competition ranking (ties share the lower rank, T-prefixed, at ANY position; the next distinct
+score skips ahead). **Rationale:** spec §8.5's tie text is general ("ties display as a shared
+position"), not restricted to the leader; the mockup's narrower behavior looks like an artifact of
+its demo data never exercising a non-leader tie, not a deliberate restriction. **Spec ref:** §8.5
+#1, §13#2. **Status:** RESOLVED.
+
+**Decision (4 of 5) — the ribbon is always scoped to one selected month, independent of the
+leaderboard/radar/consistency month-vs-all-time tab.** Neither the spec nor the mockup resolves
+what an "all-time" ribbon means; the ribbon API (`RibbonQuery{month}`) has no all-time shape, and a
+181-day-wide strip isn't legible at 390px regardless. The ribbon section always renders
+`selectedMonth` (defaulting to the current month, changeable via the same month-picker the "month"
+tab's label opens), even while the top segmented control reads "All time." **Rationale:**
+reversible, cheap to change; the alternative (hiding the ribbon under "All time") seemed worse for
+a signature element the spec says to "spend the visual ambition" on. **Spec ref:** §8.5 #2.
+**Status:** RESOLVED — reversible if the owner wants a different treatment.
+
+**Decision (5 of 5) — `RibbonDayCell` gained an additive `eligible: boolean` field.** Spec §9's
+weight-privacy sentence aside, the original contract had no way to distinguish "this day is before
+the person joined / after they were archived" from "eligible but simply unlogged" — both would
+otherwise render as the same empty-with-hairline-border segment. Added `eligible: boolean` to
+`RibbonDayCell` in `src/types.ts` (additive, non-breaking; `RibbonResponse`/`RibbonUserRow`/
+`src/api.ts`'s `getRibbon` signature are all unchanged). **Rationale:** the parallelism contract's
+own rule ("a track that needs a shape change edits `types.ts` first and says so") — no other track
+reads `RibbonResponse` yet, so there is no collision risk. **Spec ref:** §5/§9 `active_from`/
+`active_to`, §8.5 #2. **Status:** RESOLVED.
