@@ -1,0 +1,29 @@
+name = "hunsaker-family"
+compatibility_date = "2026-08-23"
+pages_build_output_dir = "dist"
+
+# Read by functions/_middleware.ts for the host-lock check. A plain var, not
+# a secret — it's not sensitive, just kept out of hardcoded literals.
+[vars]
+CANONICAL_HOST = "hunsaker-family.com"
+
+# Production D1 binding. Real database_id from `wrangler d1 create
+# health-challenge` — never invented.
+[[d1_databases]]
+binding = "DB"
+database_name = "health-challenge"
+database_id = "3f848810-e935-4796-aefe-1d3dce54ab49"
+migrations_dir = "migrations"
+
+# Preview-environment override, bound to the separate preview database per
+# spec §2 ("Environments"). Real database_id from `wrangler d1 create
+# health-challenge-preview`.
+[env.preview]
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "health-challenge-preview"
+database_id = "22e69832-9957-4499-b4db-1f1b16b92c77"
+migrations_dir = "migrations"
+
+[env.preview.vars]
+CANONICAL_HOST = "hunsaker-family.com"

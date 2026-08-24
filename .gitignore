@@ -1,0 +1,47 @@
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Node / npm ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# --- Vite / TypeScript build output ---
+dist/
+dist-ssr/
+*.tsbuildinfo
+.vite/
+
+# --- Cloudflare Wrangler ---
+.wrangler/
+.dev.vars
+.dev.vars.*
+wrangler.toml.bak
+
+# --- Secrets and env files (never committed; use wrangler pages secret put) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- D1 local sqlite state ---
+*.sqlite
+*.sqlite3
+.mf/
+
+# --- Coverage / test output ---
+coverage/
+
+# --- Misc local scratch ---
+*.local
