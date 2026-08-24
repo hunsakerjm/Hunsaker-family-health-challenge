@@ -221,11 +221,17 @@ export interface RibbonQuery {
 
 // One vertical bar per day, tap for a tooltip (spec §8.5) — `rules` carries the per-rule values
 // backing that tooltip without a second round trip.
+//
+// `eligible` — added on phase-3b-standings (parallelism contract: shape changes land here first).
+// False for a day outside the person's active window or the challenge window (e.g. they joined
+// mid-challenge), so the client can render "wasn't part of the challenge yet" distinctly from
+// "eligible but unlogged" (which is `rules: {}` with `eligible: true`) without a second call.
 export interface RibbonDayCell {
   log_date: string
   points: number
   max_points_for_date: number
   rules: Record<string, number> // rule_key -> value logged that day
+  eligible: boolean
 }
 
 export interface RibbonUserRow {
