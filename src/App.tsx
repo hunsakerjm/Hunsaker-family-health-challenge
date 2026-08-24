@@ -5,6 +5,10 @@ import {
 import { LoginScreen } from './screens/Login'
 import { SplashScreen } from './screens/Splash'
 import { DesignSystem } from './screens/DesignSystem'
+// Phase 2b's route — see Docs/PHASE2A_LOG.md. This file does not exist in this worktree yet
+// (phase-2b-celebration is a sibling branch/worktree); the orchestrator resolves it at merge.
+// Until then this import breaks `tsc --noEmit` / `npm run build` in THIS worktree by design.
+import { CelebrationDemo } from './screens/CelebrationDemo'
 import { WhoamiScreen } from './screens/Whoami'
 import { TodayScreen } from './screens/Today'
 import { ThemeProvider, useTheme } from './components/ThemeProvider'
@@ -17,6 +21,9 @@ import type { BootstrapResponse } from './types'
 // Phase 0 demo route, reachable in local dev only via direct navigation. Checked before any
 // auth-flow state so it never touches the Login/Whoami/Today boot path.
 const DESIGN_SYSTEM_PATH = '/design-system'
+// Phase 2b demo route, same pattern as DESIGN_SYSTEM_PATH — reachable in local dev only via
+// direct navigation, never touches the auth-flow state.
+const CELEBRATION_DEMO_PATH = '/celebration-demo'
 
 // A session cookie is HttpOnly, so the client can't just read it to know whether the gate has
 // already been passed. Instead we probe /api/bootstrap once on load — and since that single call
@@ -42,12 +49,13 @@ export function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('today')
 
   const isDesignSystemRoute = window.location.pathname === DESIGN_SYSTEM_PATH
+  const isCelebrationDemoRoute = window.location.pathname === CELEBRATION_DEMO_PATH
 
   useEffect(() => {
-    // The demo route never calls the API and never needs a session probe.
-    if (isDesignSystemRoute) return
+    // Demo routes never call the API and never need a session probe.
+    if (isDesignSystemRoute || isCelebrationDemoRoute) return
     loadSession()
-  }, [isDesignSystemRoute])
+  }, [isDesignSystemRoute, isCelebrationDemoRoute])
 
   async function loadSession() {
     try {
@@ -89,6 +97,14 @@ export function App() {
     return (
       <ThemeProvider>
         <DesignSystem />
+      </ThemeProvider>
+    )
+  }
+
+  if (isCelebrationDemoRoute) {
+    return (
+      <ThemeProvider>
+        <CelebrationDemo />
       </ThemeProvider>
     )
   }
