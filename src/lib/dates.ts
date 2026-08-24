@@ -241,3 +241,15 @@ export function formatDisplayDate(date: string): string {
   const instant = new Date(Date.UTC(year, month - 1, day))
   return WEEKDAY_MONTH_DAY_FORMATTER.format(instant)
 }
+
+// ---------------------------------------------------------------------------
+// Month grid support (spec §8.4 calendar month grid) — additive, no existing export touched.
+// ---------------------------------------------------------------------------
+
+/** 0 (Sunday) .. 6 (Saturday) for a calendar date string — the number of leading blank cells a
+ * month grid needs before the 1st. Computed from the same UTC-anchored representation every other
+ * function in this file uses, so it is immune to the timezone-shift trap spec §6 warns about. */
+export function getWeekdayIndex(date: string): number {
+  const { year, month, day } = parseDateString(date)
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
+}

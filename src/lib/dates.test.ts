@@ -22,6 +22,7 @@ import {
   getEditableDateRange,
   getMonthBoundaries,
   getMonthKey,
+  getWeekdayIndex,
   isDateEditable,
   isDateInRange,
   maxPointsForDate,
@@ -311,5 +312,24 @@ describe('formatDisplayDate (spec §8.3 banner date)', () => {
 
   it('renders correctly at a year boundary', () => {
     expect(formatDisplayDate('2027-01-01')).toBe('Friday, Jan 1')
+  })
+})
+
+describe('getWeekdayIndex (spec §8.4 calendar month grid)', () => {
+  it('returns 2 (Tuesday) for the first day of the challenge, 2026-09-01', () => {
+    expect(getWeekdayIndex('2026-09-01')).toBe(2)
+  })
+
+  it('returns 0 (Sunday) for a known Sunday', () => {
+    expect(getWeekdayIndex('2026-09-06')).toBe(0)
+  })
+
+  it('returns 6 (Saturday) for a known Saturday', () => {
+    expect(getWeekdayIndex('2026-09-05')).toBe(6)
+  })
+
+  it('is stable across a DST fall-back date, 2026-11-01', () => {
+    // 2026-11-01 is a Sunday — the UTC-anchored calculation must not shift with local DST.
+    expect(getWeekdayIndex('2026-11-01')).toBe(0)
   })
 })
