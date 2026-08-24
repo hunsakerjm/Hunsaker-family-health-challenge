@@ -20,6 +20,7 @@ import { Sheet } from '../components/Sheet'
 import { PendingIndicator } from '../components/PendingIndicator'
 import type { PersonSummary } from '../components/person'
 import { queuedPutWeight } from '../lib/offline/queue'
+import { useAmbientMotion } from '../lib/useAmbientMotion'
 import { WeightEntrySheet } from './WeightDetail'
 import {
   compareDates,
@@ -180,6 +181,10 @@ export function CalendarScreen({
     }
   }, [ownUserId])
 
+  // Ambient motion (spec §11.2): pips stagger in fresh each time the viewed month changes. Called
+  // unconditionally, alongside the other hooks above, so the early return below never skips it.
+  const ambientMotion = useAmbientMotion(monthKey)
+
   if (!viewedUser || !ownUser) {
     return <MissingPersonNotice theme={theme} />
   }
@@ -305,6 +310,9 @@ export function CalendarScreen({
                   hasWeight={isOwn && ownWeightByDate.has(date)}
                   onTapDay={handleTapDay}
                   onTapWeight={handleTapWeightGlyph}
+                  staggerIndex={day}
+                  ambientEnabled={ambientMotion.enabled}
+                  ambientRevealed={ambientMotion.revealed}
                 />
               )
             })}
@@ -517,8 +525,15 @@ function WeekdayLabelsRow({ theme }: { theme: ThemeSurfaces }) {
 // Day cell
 // ---------------------------------------------------------------------------
 
+// Ambient motion (spec §11.2): pips stagger in on month load. Capping the stagger keeps a
+// 31/28/30-day grid's total reveal under half a second rather than trailing off cell by cell.
+const AMBIENT_STAGGER_STEP_MS = 14
+const AMBIENT_STAGGER_MAX_STEPS = 24
+const AMBIENT_REVEAL_DURATION_MS = 220
+
 function DayCell({
   theme, day, date, points, max, color, isToday, isFuture, hasWeight, onTapDay, onTapWeight,
+  staggerIndex = 0, ambientEnabled = false, ambientRevealed = true,
 }: {
   theme: ThemeSurfaces
   day: number
@@ -531,6 +546,12 @@ function DayCell({
   hasWeight: boolean
   onTapDay: (date: string) => void
   onTapWeight: (date: string) => void
+  /** Deleting `src/lib/useAmbientMotion.ts`: drop these three props here and at the call site,
+   *  and this cell renders exactly as it did before ambient motion existed — nothing else here
+   *  depends on them. */
+  staggerIndex?: number
+  ambientEnabled?: boolean
+  ambientRevealed?: boolean
 }) {
   const wasTouched = points !== null
   const isPerfect = wasTouched && max > 0 && points === max
@@ -539,6 +560,8 @@ function DayCell({
   const border = isToday
     ? `1.5px solid ${color}`
     : `1px solid ${wasTouched ? theme.hairline : 'transparent'}`
+  const futureOpacity = isFuture ? 0.35 : 1
+  const ambientDelayMs = Math.min(staggerIndex, AMBIENT_STAGGER_MAX_STEPS) * AMBIENT_STAGGER_STEP_MS
 
   function handleClick() {
     onTapDay(date)
@@ -567,7 +590,12 @@ function DayCell({
         borderRadius: RADIUS.calendarCell,
         border,
         background,
-        opacity: isFuture ? 0.35 : 1,
+        opacity: ambientEnabled && !ambientRevealed ? 0 : futureOpacity,
+        transform: ambientEnabled && !ambientRevealed ? 'translateY(4px) scale(0.94)' : 'none',
+        transition: ambientEnabled
+          ? `opacity ${AMBIENT_REVEAL_DURATION_MS}ms ease ${ambientDelayMs}ms, `
+            + `transform ${AMBIENT_REVEAL_DURATION_MS}ms ease ${ambientDelayMs}ms`
+          : 'none',
         cursor: 'pointer',
       }}
     >
