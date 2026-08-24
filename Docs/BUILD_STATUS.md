@@ -76,6 +76,20 @@ One-time Cloudflare setup from spec Appendix B:
 
 ## Log
 
+**2026-08-23 17:55** — **Phase 2 interrupted by session limit (resets 9pm PT). All work committed as WIP, nothing lost.** Both tracks ran in isolated git worktrees, which worked correctly — no cross-contamination this time.
+
+Accurate resume state, derived from the actual commits (both agents' own `## Remaining` sections are STALE and list work already finished — do not trust them):
+
+**`phase-2a-logging` @ `e78d0df`** — 646 insertions across 15 files.
+DONE: `functions/_lib/{appConfig,audit,dateFormat,http,logs,rules,users}.ts`; `functions/api/logs/index.ts`; `functions/api/logs/[userId]/[date].ts`; `functions/api/users/index.ts`; `functions/api/users/[id]/claim.ts`; `src/lib/identity.ts`; `src/lib/celebration.ts` (local no-op STUB — must be replaced by 2b's real 373-line implementation at merge); `functions/api/bootstrap.ts` rewritten to return real users + current month logs.
+REMAINING: `src/screens/Whoami.tsx`; `src/screens/Today.tsx`; routing in `src/App.tsx`; manually seed local D1 test users (never via migration); tests, typecheck, build, gzip check.
+
+**`phase-2b-celebration` @ `918f71b`** — 753 insertions across 6 files.
+DONE: `src/lib/celebration.ts` (373 lines, the real implementation); `src/components/CelebrationBanner.tsx`; `src/screens/CelebrationDemo.tsx`; `canvas-confetti` added to package.json.
+REMAINING: verify `canvas-confetti` splits into a lazy chunk and does not enter the main bundle; verify `prefers-reduced-motion` degradation; run tests/typecheck/build; report the exact route path + import line 2a must add to `App.tsx`.
+
+**Known merge conflicts to resolve:** `src/lib/celebration.ts` (2a's stub vs 2b's real implementation — 2b wins) and `package.json` (both added dependencies).
+
 **2026-08-23 17:50** — Phases 0 and 1b merged to `main` (fast-forward) and deployed. Production verified: root/health/login 200, `/design-system` 200, `/api/bootstrap` returns the typed contract with correct `serverToday`, fonts served as `font/woff2`, `pages.dev` still 404. 53/53 tests pass; both typechecks clean; bundle 53.35 kB gzip.
 
 **2026-08-23 17:45** — **Process fix needed.** Phases 0 and 1b ran as parallel agents sharing ONE working directory and `.git`. The second agent's `git checkout` moved the first agent's HEAD mid-run. No work was lost — file-ownership boundaries held and the two sets were cleanly separable — but future parallel agents MUST use `isolation: "worktree"` so each gets its own checkout. Do not run parallel agents in a shared tree again.
