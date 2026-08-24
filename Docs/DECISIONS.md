@@ -343,3 +343,40 @@ percentage formula but is silent on the single-entry case; treating it as "no da
 "0% progress" matches how every other null case in this module is already read by callers, and
 avoids a person's first weigh-in ever displaying as a discouraging flat 0%. **Spec ref:** §8.6,
 §8.5 #5, §9. **Status:** RESOLVED.
+
+### 2026-08-24 — Phase 5A month recap and ambient motion: burst reuse, ribbon-wipe scope, key naming
+
+**Decision (1 of 4) — the recap burst reuses `playCelebration` unmodified, as a ratio-1.0 call
+(`pointsAfter: 1, maxPointsForDay: 1`), rather than adding a new export to `celebration.ts`.**
+§11.2 only asks for "a burst," with no tier of its own, and a ratio of 1.0 already gives the
+richest available shape (gold accents, three staggered bursts) in the person's color — exactly
+what a month total deserves. Whether to fire at all is decided by the caller (`MonthRecap.tsx`)
+before ever calling in: `subtle` and a zero-entry month both skip the call entirely rather than
+asking `playCelebration` to suppress itself, since its own `subtle` handling (capping the ratio)
+is the wrong shape for "no burst at all." **Rationale:** the interface constraint pins
+`celebration.ts` as shared and asks to prefer existing exports; this need was fully expressible
+without a new one. **Spec ref:** §11.2 "Month recap," "The setting." **Status:** RESOLVED.
+
+**Decision (2 of 4) — the ribbon's left-to-right wipe wraps `Ribbon`'s whole rendered output in
+`Standings.tsx` (a `clip-path` reveal on one container div) rather than staggering each person's
+row from inside `src/components/charts/Ribbon.tsx`.** That file is not in this track's owned-files
+list. **Rationale:** the spec text ("ribbon strips wipe in left to right") is satisfied by a single
+wipe across the whole card; per-row staggering would read only marginally richer and isn't worth
+an edit to a file another track may still be touching. **Spec ref:** §11.2 "Ambient motion."
+**Status:** RESOLVED — trivial to move the wipe inside `Ribbon.tsx` per-row later if the owner
+wants it.
+
+**Decision (3 of 4) — `lastRecapShown` is a bare, unnamespaced localStorage key, not scoped by
+user id, unlike every other key this app writes (`celebration.ts`'s `hhc:` prefix,
+`hhc:celebration-tier:` etc.).** The brief pins this exact key name literally. **Rationale:** a
+device carries one claimed identity at a time (spec §2, §3), so "once per person per device" and
+"once per this key per device" already coincide in practice; the literal name was treated as
+binding over this track's own namespacing convention. **Spec ref:** §11.2 "Month recap." **Status:**
+RESOLVED — reversible (rename to `hhc:lastRecapShown:{userId}`) if the owner later wants
+multi-identity devices to get independent recaps.
+
+**Decision (4 of 4) — "the person logged nothing last month" is read as zero `LogEntry` rows for
+that user/month, not "points summed to zero."** A `counter` rule logged at a literal 0 is still a
+logged entry. **Rationale:** matches the spec's own wording ("logged nothing") over a
+value-based reading, and avoids the odd case of someone who dutifully logged a real 0 being told
+they didn't log at all. **Spec ref:** §11.2 "Month recap." **Status:** RESOLVED.
