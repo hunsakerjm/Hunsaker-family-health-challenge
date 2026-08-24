@@ -68,13 +68,10 @@ export function InstallHint({ theme }: InstallHintProps): JSX.Element | null {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 flex justify-center"
+      className="flex justify-center"
       style={{
-        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
         paddingLeft: 'max(16px, env(safe-area-inset-left))',
         paddingRight: 'max(16px, env(safe-area-inset-right))',
-        zIndex: 30,
-        pointerEvents: 'none',
       }}
     >
       <div
@@ -87,7 +84,6 @@ export function InstallHint({ theme }: InstallHintProps): JSX.Element | null {
           boxShadow: isLight
             ? '0 4px 12px rgba(0,0,0,0.12)'
             : '0 4px 12px rgba(0,0,0,0.4)',
-          pointerEvents: 'auto',
         }}
       >
         <div className="flex-1">

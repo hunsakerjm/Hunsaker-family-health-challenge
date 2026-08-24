@@ -4,7 +4,7 @@
  * Contract (spec §10):
  * - GET requests only — all non-GET requests bypass the service worker untouched.
  * - App shell (precached): /, /index.html, /manifest.webmanifest, icons, fonts.
- * - /api/** — network-first with cache fallback.
+ * - /api/** (except /api/export.csv) — network-first with cache fallback.
  * - /assets/** and static files — cache-first (content-hashed, immutable).
  * - Navigation requests — network-first, fallback to cached /index.html.
  * - Cross-origin and /api/auth/* requests — never cached, never intercepted.
@@ -16,9 +16,11 @@
 const CACHE_VERSION = 'v1'
 const CACHE_NAME = `health-challenge-${CACHE_VERSION}`
 
-const PRECACHE_URLS = [
-  '/',
-  '/index.html',
+// Required shell entries (fail the install if these are missing)
+const REQUIRED_PRECACHE_URLS = ['/', '/index.html']
+
+// Optional app shell entries (cached individually, non-fatal if missing)
+const OPTIONAL_PRECACHE_URLS = [
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-192-maskable.png',
@@ -39,7 +41,18 @@ const PRECACHE_URLS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS).then(() => {
+      // Cache required shell entries; fail install if any are missing
+      return cache.addAll(REQUIRED_PRECACHE_URLS).then(() => {
+        // Cache optional entries individually so one failure doesn't break the batch
+        return Promise.all(
+          OPTIONAL_PRECACHE_URLS.map((url) => {
+            return cache.add(url).catch(() => {
+              // Log and continue; not all files need to be present
+              console.warn(`Failed to cache optional precache URL: ${url}`)
+            })
+          })
+        )
+      }).then(() => {
         self.skipWaiting()
       })
     })
@@ -87,17 +100,21 @@ self.addEventListener('fetch', (event) => {
 
   // Determine strategy based on request type
   if (urlObj.pathname.startsWith('/api/')) {
-    // API endpoints — network-first with cache fallback
-    event.respondWith(networkFirstStrategy(request))
+    // API endpoints — network-first with cache fallback, except data exports
+    if (urlObj.pathname === '/api/export.csv') {
+      // Data exports are never cached; network only
+      return
+    }
+    event.respondWith(networkFirstStrategy(request, event))
   } else if (
     urlObj.pathname.startsWith('/assets/') ||
     urlObj.pathname.match(/\.(woff2|woff|ttf|otf)$/)
   ) {
     // Static/hashed assets and fonts — cache-first
-    event.respondWith(cacheFirstStrategy(request))
+    event.respondWith(cacheFirstStrategy(request, event))
   } else {
     // Navigation requests (/) — network-first, fallback to shell
-    event.respondWith(navigationStrategy(request))
+    event.respondWith(navigationStrategy(request, event))
   }
 })
 
@@ -105,14 +122,16 @@ self.addEventListener('fetch', (event) => {
  * Network-first strategy: try network, fall back to cache.
  * Used for /api/** to render something offline when possible.
  */
-function networkFirstStrategy(request) {
+function networkFirstStrategy(request, event) {
   return fetch(request).then((response) => {
     // Only cache successful responses
     if (response.ok) {
       const clone = response.clone()
-      caches.open(CACHE_NAME).then((cache) => {
-        cache.put(request, clone)
-      })
+      event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(request, clone)
+        })
+      )
     }
     return response
   }).catch(() => {
@@ -127,7 +146,7 @@ function networkFirstStrategy(request) {
  * Cache-first strategy: use cached version if available, network as fallback.
  * Used for hashed assets (immutable by definition).
  */
-function cacheFirstStrategy(request) {
+function cacheFirstStrategy(request, event) {
   return caches.match(request).then((response) => {
     if (response) {
       return response
@@ -135,9 +154,11 @@ function cacheFirstStrategy(request) {
     return fetch(request).then((response) => {
       if (response.ok) {
         const clone = response.clone()
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, clone)
-        })
+        event.waitUntil(
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clone)
+          })
+        )
       }
       return response
     }).catch(() => {
@@ -150,13 +171,15 @@ function cacheFirstStrategy(request) {
  * Navigation strategy: network-first for SPA, fallback to shell.
  * Ensures the app shell (/) always loads, even offline.
  */
-function navigationStrategy(request) {
+function navigationStrategy(request, event) {
   return fetch(request).then((response) => {
     if (response.ok) {
       const clone = response.clone()
-      caches.open(CACHE_NAME).then((cache) => {
-        cache.put(request, clone)
-      })
+      event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(request, clone)
+        })
+      )
     }
     return response
   }).catch(() => {
