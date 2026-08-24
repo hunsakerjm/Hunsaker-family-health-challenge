@@ -13,11 +13,13 @@ import {
   type TouchEvent,
 } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, Scale } from 'lucide-react'
-import { getLogs, getWeights, putWeight, ApiError } from '../api'
+import { getLogs, getWeights, ApiError } from '../api'
 import { Card } from '../components/Card'
 import { Pips } from '../components/Pips'
 import { Sheet } from '../components/Sheet'
+import { PendingIndicator } from '../components/PendingIndicator'
 import type { PersonSummary } from '../components/person'
+import { queuedPutWeight } from '../lib/offline/queue'
 import { WeightEntrySheet } from './WeightDetail'
 import {
   compareDates,
@@ -245,9 +247,14 @@ export function CalendarScreen({
 
   async function handleSaveWeight(weightLb: number) {
     if (!weightSheetDate) return
+    const date = weightSheetDate
     try {
-      const saved = await putWeight(ownUserId, weightSheetDate, weightLb, ownUserId)
-      setOwnWeightByDate((prev) => new Map(prev).set(saved.log_date, saved.weight_lb))
+      const result = await queuedPutWeight(ownUserId, date, weightLb, ownUserId)
+      // Optimistic either way (spec §10): a queued result has no server-confirmed value to read
+      // back, so the glyph and the entered value are applied from what the person just typed —
+      // exactly the value `queuedPutWeight` already persisted to the offline queue.
+      const savedWeightLb = result.status === 'synced' ? result.data.weight_lb : weightLb
+      setOwnWeightByDate((prev) => new Map(prev).set(date, savedWeightLb))
       setWeightError(null)
       setWeightSheetDate(null)
     } catch (error) {
@@ -271,6 +278,7 @@ export function CalendarScreen({
         <MonthStatsLine theme={theme} stats={stats} />
 
         {weightError && <ErrorNotice message={weightError} />}
+        <PendingIndicator theme={theme} />
 
         <Card theme={theme} padded>
           <WeekdayLabelsRow theme={theme} />

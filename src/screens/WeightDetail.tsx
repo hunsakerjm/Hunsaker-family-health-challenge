@@ -7,9 +7,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ChevronLeft, Pencil, Plus, Scale, Star, Trash2, TrendingDown, TrendingUp, X,
 } from 'lucide-react'
-import { deleteWeight, getWeights, putWeight, setWeightBaseline, ApiError } from '../api'
+import { deleteWeight, getWeights, setWeightBaseline, ApiError } from '../api'
 import { Card } from '../components/Card'
 import { Sheet } from '../components/Sheet'
+import { PendingIndicator } from '../components/PendingIndicator'
+import { queuedPutWeight } from '../lib/offline/queue'
 import {
   computePercentLost,
   findMostRecentEntry,
@@ -85,9 +87,17 @@ export function WeightDetailScreen({
 
   async function handleSave(weightLb: number) {
     if (!sheetDate) return
+    const date = sheetDate
     try {
-      const saved = await putWeight(ownUser.id, sheetDate, weightLb, ownUser.id)
-      setEntries((prev) => replaceEntry(prev ?? [], saved))
+      const result = await queuedPutWeight(ownUser.id, date, weightLb, ownUser.id)
+      // Optimistic either way (spec §10): a queued result has no server-confirmed row, so the
+      // list is updated from what was just entered, preserving whatever `is_baseline` the date
+      // already carried locally (a queued write never changes baseline — see upsertWeightEntry's
+      // own header comment for why the server side preserves it too).
+      const entry = result.status === 'synced'
+        ? result.data
+        : buildOptimisticWeightEntry(ownUser.id, date, weightLb, entries ?? [])
+      setEntries((prev) => replaceEntry(prev ?? [], entry))
       setActionError(null)
       closeSheet()
     } catch (error) {
@@ -121,6 +131,7 @@ export function WeightDetailScreen({
       <div className="px-4" style={{ paddingTop: 16, paddingBottom: 28 }}>
         {loadError && <ErrorNotice message={loadError} />}
         {actionError && <ErrorNotice message={actionError} />}
+        <PendingIndicator theme={theme} />
 
         <PercentHero theme={theme} color={color.hex} percentLost={percentLost} />
 
@@ -188,6 +199,26 @@ export function WeightDetailScreen({
 function replaceEntry(entries: WeightEntry[], saved: WeightEntry): WeightEntry[] {
   const withoutThisDate = entries.filter((entry) => entry.log_date !== saved.log_date)
   return [...withoutThisDate, saved]
+}
+
+/** Built only when `queuedPutWeight` reports `{status:'queued'}` — there is no server response to
+ * read a canonical row from yet. Mirrors the shape `PUT /api/weights/:userId/:date` would return,
+ * carrying forward whatever `is_baseline` the date already had locally (a plain upsert never moves
+ * that flag — see functions/_lib/weights.ts's own header comment). */
+function buildOptimisticWeightEntry(
+  userId: string,
+  date: string,
+  weightLb: number,
+  existing: WeightEntry[],
+): WeightEntry {
+  const priorEntry = existing.find((entry) => entry.log_date === date)
+  return {
+    user_id: userId,
+    log_date: date,
+    weight_lb: weightLb,
+    is_baseline: priorEntry?.is_baseline ?? false,
+    updated_at: new Date().toISOString(),
+  }
 }
 
 function markBaseline(entries: WeightEntry[], date: string): WeightEntry[] {
