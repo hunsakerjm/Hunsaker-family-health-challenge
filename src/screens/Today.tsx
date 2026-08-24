@@ -11,11 +11,14 @@ import {
   type MouseEvent,
 } from 'react'
 import { Check, ChevronRight, Flame, Scale } from 'lucide-react'
-import { putLog, getLogs, ApiError } from '../api'
+import {
+  putLog, getLogs, getWeights, putWeight, ApiError,
+} from '../api'
 import { Sheet, SheetButton } from '../components/Sheet'
 import { Banner } from '../components/Banner'
 import type { PersonSummary } from '../components/person'
 import { iconForRule } from '../lib/ruleIcons'
+import { WeightEntrySheet } from './WeightDetail'
 import {
   originFromPointerEvent,
   playCelebration,
@@ -55,6 +58,7 @@ import type {
   Rule,
   ThresholdRuleConfig,
   User,
+  WeightEntry,
 } from '../types'
 
 interface TodayScreenProps {
@@ -62,6 +66,10 @@ interface TodayScreenProps {
   reducedMotion: boolean
   config: AppConfig
   serverToday: string
+  /** Optional starting date, e.g. from a Calendar day-tap deep link (spec §8.4: "tapping a day
+   * opens that day's log"). Defaults to `serverToday` so the normal Today-tab entry point, and
+   * the ten-second logging path, are unchanged. */
+  initialDate?: string
   /** Rules effective "now," per spec §9's bootstrap contract. Known Phase 2a limitation: if a
    * rule's effective window starts or ends between `serverToday` and a backfilled/future date
    * being viewed, this list won't reflect that — bootstrap only ever returns today's set. The
@@ -83,6 +91,10 @@ const EMOJI_FALLBACK = '🙂'
 const GENERIC_SAVE_ERROR = 'Could not save. Check your connection and try again.'
 const AMBER_BAR_TEXT = 'not your log'
 const CACHE_KEY_SEPARATOR = ':'
+// Only used as a fallback while the lazy prior-value lookup (see handleOpenWeightSheet) is still
+// in flight, or when the viewed date has no weight logged yet. Mirrors WeightDetail.tsx's and
+// Calendar.tsx's own local default — no shared constant exists for it yet.
+const DEFAULT_WEIGHT_LB = 150
 
 function cacheKeyFor(userId: string, monthKey: string): string {
   return `${userId}${CACHE_KEY_SEPARATOR}${monthKey}`
@@ -93,6 +105,7 @@ export function TodayScreen({
   reducedMotion,
   config,
   serverToday,
+  initialDate,
   rules,
   users,
   ownUserId,
@@ -100,13 +113,14 @@ export function TodayScreen({
   initialLogs,
   onSwitchPerson,
 }: TodayScreenProps) {
-  const [date, setDate] = useState(serverToday)
+  const [date, setDate] = useState(initialDate ?? serverToday)
   const [logsByMonth, setLogsByMonth] = useState<Map<string, LogEntry[]>>(() => (
     seedMonthCache(initialLogs)
   ))
   const [unlocked, setUnlocked] = useState(false)
   const [showUnlockConfirm, setShowUnlockConfirm] = useState(false)
   const [showWeightSheet, setShowWeightSheet] = useState(false)
+  const [weightPrefillLb, setWeightPrefillLb] = useState<number | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const isOwn = viewedUserId === ownUserId
@@ -245,6 +259,37 @@ export function TodayScreen({
     setShowUnlockConfirm(false)
   }
 
+  function handleOpenWeightSheet() {
+    setShowWeightSheet(true)
+    setWeightPrefillLb(null)
+    // Lazy, on-tap only — never on mount. Today's governing constraint is a fast first paint for
+    // the checkbox rows above; this fetch only starts once the person has already asked to log a
+    // weight, so it can't regress the ten-second path. Best-effort: if it fails, the sheet still
+    // opens with DEFAULT_WEIGHT_LB rather than blocking the person from logging at all.
+    getWeights(ownUserId)
+      .then((entries: WeightEntry[]) => {
+        const existing = entries.find((entry) => entry.log_date === date)
+        setWeightPrefillLb(existing?.weight_lb ?? null)
+      })
+      .catch(() => {})
+  }
+
+  function handleDismissWeightSheet() {
+    setShowWeightSheet(false)
+    setWeightPrefillLb(null)
+  }
+
+  async function handleSaveWeight(weightLb: number) {
+    try {
+      // §11.2: "No celebration of any kind fires on a weight entry" — this intentionally never
+      // touches celebrateIfNewTier, unlike submitRuleValue above.
+      await putWeight(ownUserId, date, weightLb, ownUserId)
+      setShowWeightSheet(false)
+    } catch (error) {
+      setSaveError(error instanceof ApiError ? error.message : GENERIC_SAVE_ERROR)
+    }
+  }
+
   return (
     <div>
       <Banner
@@ -287,7 +332,7 @@ export function TodayScreen({
         )}
 
         {viewedUser.in_weight_challenge && isOwn && (
-          <WeightRow theme={theme} onTap={() => setShowWeightSheet(true)} />
+          <WeightRow theme={theme} onTap={handleOpenWeightSheet} />
         )}
 
         <MonthLoggedCaption theme={theme} count={loggedDaysInMonth} monthKey={monthKey} />
@@ -303,7 +348,19 @@ export function TodayScreen({
         />
       )}
       {showWeightSheet && (
-        <WeightComingSoonSheet theme={theme} onDismiss={() => setShowWeightSheet(false)} />
+        // Keyed on the resolved prior value so the sheet remounts (and re-seeds its internal
+        // stepper state) once the lazy lookup in handleOpenWeightSheet resolves to a real stored
+        // entry, without WeightEntrySheet itself needing to know about async prefill at all.
+        <WeightEntrySheet
+          key={weightPrefillLb ?? 'default'}
+          theme={theme}
+          dateLabel={formatDisplayDate(date)}
+          initialWeightLb={weightPrefillLb ?? DEFAULT_WEIGHT_LB}
+          color={viewedPalette.hex}
+          onColor={viewedPalette.on}
+          onSave={handleSaveWeight}
+          onDismiss={handleDismissWeightSheet}
+        />
       )}
     </div>
   )
@@ -851,23 +908,6 @@ function WeightRow({ theme, onTap }: { theme: ThemeSurfaces; onTap: () => void }
       </span>
       <ChevronRight size={16} color={theme.muted} />
     </button>
-  )
-}
-
-// Weight persistence (functions/api/weights/**) belongs to Phase 3A (spec §8.6, §9) — this row
-// stays visible per the §8.3 wireframe, but taps land on an honest placeholder rather than a
-// broken write until that phase lands.
-function WeightComingSoonSheet({ theme, onDismiss }: { theme: ThemeSurfaces; onDismiss: () => void }) {
-  return (
-    <Sheet theme={theme} onDismiss={onDismiss}>
-      <h2 style={{ ...TYPE_SCALE.sectionTitle, color: theme.ink }}>Weight tracking</h2>
-      <p style={{ ...TYPE_SCALE.caption, color: theme.muted, marginTop: 6, lineHeight: 1.5 }}>
-        Arriving in a later phase.
-      </p>
-      <div style={{ marginTop: 16 }}>
-        <SheetButton theme={theme} label="Close" onClick={onDismiss} primary />
-      </div>
-    </Sheet>
   )
 }
 

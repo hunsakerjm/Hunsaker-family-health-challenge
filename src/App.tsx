@@ -11,6 +11,9 @@ import { DesignSystem } from './screens/DesignSystem'
 import { CelebrationDemo } from './screens/CelebrationDemo'
 import { WhoamiScreen } from './screens/Whoami'
 import { TodayScreen } from './screens/Today'
+import { CalendarScreen } from './screens/Calendar'
+import { WeightDetailScreen } from './screens/WeightDetail'
+import { SettingsScreen } from './screens/Settings'
 import { ThemeProvider, useTheme } from './components/ThemeProvider'
 import { BottomNav, type BottomNavItem } from './components/BottomNav'
 import { getBootstrap } from './api'
@@ -93,6 +96,21 @@ export function App() {
     setShowWhoami(true)
   }
 
+  // Settings → This device → "Sign out" (spec §8.7). DeviceSection already calls the shared
+  // /api/auth/logout endpoint and clears the local identity claim before invoking this — App only
+  // owns returning to the login gate.
+  function handleSignOut() {
+    setAuthState('unauthenticated')
+  }
+
+  // Settings can create people, edit rules, and edit challenge config (spec §8.7) — any of those
+  // leaves bootstrap's cached copy stale for Today/Calendar. Best-effort, same pattern as the
+  // post-claim refresh in handleIdentityClaimed: never blocks Settings' own local state, which is
+  // already correct on its own.
+  function handleDataChanged() {
+    getBootstrap().then(setBootstrap).catch(() => {})
+  }
+
   if (isDesignSystemRoute) {
     return (
       <ThemeProvider>
@@ -131,6 +149,8 @@ export function App() {
         onSelectTab={setActiveTab}
         onIdentityClaimed={handleIdentityClaimed}
         onSwitchPerson={handleSwitchPerson}
+        onSignOut={handleSignOut}
+        onDataChanged={handleDataChanged}
       />
     </ThemeProvider>
   )
@@ -148,6 +168,8 @@ interface AuthenticatedAppProps {
   onSelectTab: (tab: AppTab) => void
   onIdentityClaimed: (userId: string) => void
   onSwitchPerson: () => void
+  onSignOut: () => void
+  onDataChanged: () => void
 }
 
 // Deep-link only in this phase: Calendar/Standings (Phase 3) own the real in-app entry point for
@@ -155,6 +177,15 @@ interface AuthenticatedAppProps {
 // tested now without adding chrome the mockup doesn't call for on the Today screen itself.
 function readViewedUserIdParam(): string | null {
   return new URLSearchParams(window.location.search).get('u')
+}
+
+// Set by Calendar's onOpenDay (spec §8.4: "Tapping a day opens that day's log, respecting §3.4")
+// and consumed once by TodayScreen's initial mount after the tab switch. One-shot: cleared as
+// soon as the person leaves the Today tab, so a later plain tap on the Today nav item goes back
+// to the normal "my page, today's date" landing rather than replaying a stale deep link.
+interface PendingTodayTarget {
+  date: string
+  userId: string
 }
 
 function AuthenticatedApp({
@@ -165,8 +196,18 @@ function AuthenticatedApp({
   onSelectTab,
   onIdentityClaimed,
   onSwitchPerson,
+  onSignOut,
+  onDataChanged,
 }: AuthenticatedAppProps) {
   const { theme, reducedMotion } = useTheme()
+  const [pendingTodayTarget, setPendingTodayTarget] = useState<PendingTodayTarget | null>(null)
+  const [showWeightDetail, setShowWeightDetail] = useState(false)
+
+  useEffect(() => {
+    if (activeTab !== 'today' && pendingTodayTarget !== null) {
+      setPendingTodayTarget(null)
+    }
+  }, [activeTab, pendingTodayTarget])
 
   if (showWhoami || !activeUserId) {
     return (
@@ -183,7 +224,8 @@ function AuthenticatedApp({
   const viewedUserIdParam = readViewedUserIdParam()
   const isViewedUserValid = viewedUserIdParam !== null
     && bootstrap.users.some((user) => user.id === viewedUserIdParam)
-  const viewedUserId = isViewedUserValid ? (viewedUserIdParam as string) : activeUserId
+  const urlViewedUserId = isViewedUserValid ? (viewedUserIdParam as string) : activeUserId
+  const viewedUserId = pendingTodayTarget?.userId ?? urlViewedUserId
 
   function handleSelectTab(key: string) {
     if (key === 'today' || key === 'calendar' || key === 'standings' || key === 'device') {
@@ -191,24 +233,46 @@ function AuthenticatedApp({
     }
   }
 
+  // Calendar doesn't own the Today tab, so it hands the (date, userId) pair here to switch tabs.
+  function handleOpenDay(date: string, userId: string) {
+    setPendingTodayTarget({ date, userId })
+    onSelectTab('today')
+  }
+
+  function handleOpenWeightDetail() {
+    setShowWeightDetail(true)
+  }
+
+  function handleCloseWeightDetail() {
+    setShowWeightDetail(false)
+  }
+
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: theme.paper }}>
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'today' ? (
-          <TodayScreen
+        {showWeightDetail && ownUser ? (
+          <WeightDetailScreen
             theme={theme}
-            reducedMotion={reducedMotion}
             config={bootstrap.config}
             serverToday={bootstrap.serverToday}
-            rules={bootstrap.rules}
-            users={bootstrap.users}
-            ownUserId={activeUserId}
-            viewedUserId={viewedUserId}
-            initialLogs={bootstrap.logs}
-            onSwitchPerson={onSwitchPerson}
+            ownUser={ownUser}
+            onBack={handleCloseWeightDetail}
           />
         ) : (
-          <ComingSoonScreen theme={theme} tab={activeTab} />
+          <TabContent
+            theme={theme}
+            reducedMotion={reducedMotion}
+            bootstrap={bootstrap}
+            activeTab={activeTab}
+            activeUserId={activeUserId}
+            viewedUserId={viewedUserId}
+            pendingTodayTarget={pendingTodayTarget}
+            onSwitchPerson={onSwitchPerson}
+            onOpenDay={handleOpenDay}
+            onOpenWeightDetail={handleOpenWeightDetail}
+            onSignOut={onSignOut}
+            onDataChanged={onDataChanged}
+          />
         )}
       </div>
       <BottomNav
@@ -222,20 +286,99 @@ function AuthenticatedApp({
   )
 }
 
-const TAB_LABELS: Record<Exclude<AppTab, 'today'>, string> = {
-  calendar: 'Calendar',
-  standings: 'Standings',
-  device: 'Settings',
+interface TabContentProps {
+  theme: ThemeSurfaces
+  reducedMotion: boolean
+  bootstrap: BootstrapResponse
+  activeTab: AppTab
+  activeUserId: string
+  viewedUserId: string
+  pendingTodayTarget: PendingTodayTarget | null
+  onSwitchPerson: () => void
+  onOpenDay: (date: string, userId: string) => void
+  onOpenWeightDetail: () => void
+  onSignOut: () => void
+  onDataChanged: () => void
 }
 
-// Calendar (3A), Standings (3B), and Settings (3C, the "Device" tab) are later phases — the nav
-// stays fully visible per §8.3's wireframe, but only Today is wired up in Phase 2a.
-function ComingSoonScreen({ theme, tab }: { theme: ThemeSurfaces; tab: AppTab }) {
-  if (tab === 'today') return null
+// Split out from AuthenticatedApp purely to keep the tab switch itself short enough to read
+// without scrolling — no behavior here depends on anything AuthenticatedApp doesn't already pass.
+function TabContent({
+  theme,
+  reducedMotion,
+  bootstrap,
+  activeTab,
+  activeUserId,
+  viewedUserId,
+  pendingTodayTarget,
+  onSwitchPerson,
+  onOpenDay,
+  onOpenWeightDetail,
+  onSignOut,
+  onDataChanged,
+}: TabContentProps) {
+  if (activeTab === 'today') {
+    return (
+      <TodayScreen
+        theme={theme}
+        reducedMotion={reducedMotion}
+        config={bootstrap.config}
+        serverToday={bootstrap.serverToday}
+        initialDate={pendingTodayTarget?.date}
+        rules={bootstrap.rules}
+        users={bootstrap.users}
+        ownUserId={activeUserId}
+        viewedUserId={viewedUserId}
+        initialLogs={bootstrap.logs}
+        onSwitchPerson={onSwitchPerson}
+      />
+    )
+  }
+
+  if (activeTab === 'calendar') {
+    return (
+      <CalendarScreen
+        theme={theme}
+        config={bootstrap.config}
+        serverToday={bootstrap.serverToday}
+        rules={bootstrap.rules}
+        users={bootstrap.users}
+        ownUserId={activeUserId}
+        initialLogs={bootstrap.logs}
+        onOpenDay={onOpenDay}
+        onOpenWeightDetail={onOpenWeightDetail}
+      />
+    )
+  }
+
+  if (activeTab === 'device') {
+    return (
+      <SettingsScreen
+        theme={theme}
+        reducedMotion={reducedMotion}
+        config={bootstrap.config}
+        serverToday={bootstrap.serverToday}
+        rules={bootstrap.rules}
+        users={bootstrap.users}
+        ownUserId={activeUserId}
+        onSwitchPerson={onSwitchPerson}
+        onSignOut={onSignOut}
+        onDataChanged={onDataChanged}
+      />
+    )
+  }
+
+  return <ComingSoonScreen theme={theme} />
+}
+
+// Today, Calendar, and Settings ("Device") are all wired up (Phase 2a, 3A, 3C). Standings (3B) is
+// still building in a parallel worktree — the nav stays fully visible per §8.3's wireframe, but
+// this placeholder is now reachable only from that one tab until 3B lands.
+function ComingSoonScreen({ theme }: { theme: ThemeSurfaces }) {
   return (
     <div className="flex items-center justify-center px-6" style={{ minHeight: '60vh' }}>
       <p style={{ ...TYPE_SCALE.caption, color: theme.muted, textAlign: 'center' }}>
-        {TAB_LABELS[tab]} arrives in a later phase.
+        Standings arrives in a later phase.
       </p>
     </div>
   )
