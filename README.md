@@ -182,24 +182,34 @@ different database.
   history is not where family health data or a password hash belongs), and not a location
   that disappears if a laptop dies.
 
-### The scheduled path (researched, not deployed)
+### Two manual, on-demand recovery paths
 
-Spec §12 offers scheduled D1 -> R2 export as the preferred option, with the manual
-procedure above as the accepted minimum. **Cloudflare Pages Functions have no
-scheduled/cron handler** — confirmed against
-[developers.cloudflare.com/pages/functions/bindings/](https://developers.cloudflare.com/pages/functions/bindings/)
-(the full list of bindings Pages Functions support has no scheduled/cron entry) and
-[developers.cloudflare.com/workers/configuration/cron-triggers/](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
-(Cron Triggers are documented exclusively for standalone Workers via a `[triggers]` config
-key and a `scheduled()` handler, with no Pages equivalent). A scheduled export therefore
-requires a **separate standalone Worker** with its own `wrangler.toml`, deployed
-independently of this Pages project.
+**Backups are manual and on demand — this is a deliberate owner decision, not an omission.**
+Spec §12 explicitly permits this: scheduled weekly D1 export to R2 is listed as the preferred
+option, but the spec's exact language is "scheduled weekly D1 export to R2, **or at minimum** a
+documented manual `wrangler d1 export` procedure in the README." That minimum is met, and the
+owner has elected to implement only these on-demand paths rather than adding scheduled Worker
+infrastructure.
 
-That Worker has been written — undeployed — in [`backup/`](backup/). It is not wired into
-anything, provisions nothing on its own, and costs nothing until the owner deliberately
-follows [`backup/README.md`](backup/README.md), which requires creating a new R2 bucket
-and running a second, separate `wrangler deploy`. Until then, the manual procedure above
-is the real backup plan.
+Two independent recovery approaches exist:
+
+1. **Settings → Export** — a one-tap CSV download of all challenge data, session-protected.
+   This is the everyday backup path and the one a non-technical person can use from their
+   phone. The CSV is in long format (one row per person, date, rule, including zero-value days)
+   and is sufficient to reconstruct the challenge without database access — spec §9 names this
+   export load-bearing for exactly that reason.
+
+2. **`wrangler d1 export`** — the full SQL dump, schema included, for actual disaster recovery.
+   This procedure is documented above in this section (Back up / Restore) with full notes on
+   what the export contains, how to restore it to a fresh database, and how to repoint the app
+   at the restored copy. It requires terminal access but is the true recovery path for total
+   data loss.
+
+**Why automated backups were not added:** Cloudflare Pages Functions have no scheduled/cron
+handler — Cron Triggers are documented only for standalone Workers. A scheduled export would
+require a separate standalone Worker plus an R2 bucket, adding cloud infrastructure beyond the
+Pages project. For a six-month family challenge, the on-demand paths above were judged
+sufficient and simpler to operate.
 
 ## How to add a rule or a person
 

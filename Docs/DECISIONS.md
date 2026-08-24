@@ -408,3 +408,26 @@ without deploying it preserves the option at zero cost and zero risk.
 
 **Status:** RESOLVED — manual procedure is live documentation; scheduled Worker is written,
 reviewed, and undeployed pending explicit owner action per `backup/README.md`.
+
+---
+
+### 2026-08-24 — Scheduled backups declined; Worker deleted and README updated
+
+**Decision:** The owner has decided against implementing automated/scheduled backups. The
+previously-written scheduled D1→R2 Worker in `backup/` has been deleted from the repo (via
+`git rm -r backup/`). Backups remain manual and on demand via Settings → Export (CSV, for
+everyday use) and `wrangler d1 export` (SQL dump, for disaster recovery). README.md has been
+updated to reflect this as the final, permanent backup plan.
+
+**Rationale:** Spec §12's "or at minimum" language explicitly permits manual-only backups in
+place of the preferred scheduled option. The owner expressed a preference for "a button for
+export in settings" over infrastructure, making manual on-demand the deliberate choice. Since
+the Worker was never deployed and costs nothing until deployed, deletion vs. storage was a
+clarification choice: committing undeployed code invites re-derivation of the question later.
+Deleting it makes the repo state match the actual operational design. Git history preserves
+the code if it ever becomes wanted. The export button itself (Settings → Export → `/api/export.csv`,
+Phase 3C) requires no changes — it already exists and is the everyday path.
+
+**Spec ref:** §12 ("Backups").
+
+**Status:** RESOLVED — manual on-demand backups are now the final design, documented in README.
