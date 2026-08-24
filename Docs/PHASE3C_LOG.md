@@ -142,4 +142,14 @@ tests before this stage. Cleaned up afterward: killed the dev server, deleted th
 
 ## Remaining
 
-- [ ] Final report to the orchestrator (this is the last step)
+Phase 3C is functionally complete on this branch. Nothing left for this track to build — the
+only remaining step was reporting back to the orchestrator, done. What's explicitly OUT of this
+track's scope and therefore still open for whoever owns it later:
+
+- `POST /api/admin/recompute` — not owned by 3C (not in the file-ownership list), still 404s.
+  `src/api.ts`'s `recompute()` stub already existed before this pass and is unchanged.
+- Wiring `<SettingsScreen>` into `src/App.tsx`'s `device` tab, and the `onSwitchPerson`/
+  `onSignOut` callback implementations there — orchestrator's job per file ownership; exact prop
+  contract and wiring instructions are in the final report.
+- Enforcing `active_from`/`active_to`/`status` in the actual standings/stats SQL is 3B's
+  `functions/api/stats/**` — this track only sets those fields correctly via `PATCH /api/users/:id`.
