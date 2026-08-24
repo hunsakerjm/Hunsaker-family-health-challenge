@@ -15,6 +15,7 @@ import { CalendarScreen } from './screens/Calendar'
 import { WeightDetailScreen } from './screens/WeightDetail'
 import { SettingsScreen } from './screens/Settings'
 import { StandingsScreen } from './screens/Standings'
+import { MonthRecap } from './screens/MonthRecap'
 import { ThemeProvider, useTheme } from './components/ThemeProvider'
 import { BottomNav, type BottomNavItem } from './components/BottomNav'
 import { InstallHint } from './components/InstallHint'
@@ -285,6 +286,14 @@ function AuthenticatedApp({
         onSelect={handleSelectTab}
         activeColor={ownColor}
       />
+      {ownUser && (
+        <MonthRecap
+          theme={theme}
+          config={bootstrap.config}
+          serverToday={bootstrap.serverToday}
+          user={ownUser}
+        />
+      )}
     </div>
   )
 }
