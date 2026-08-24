@@ -137,3 +137,15 @@ as a stop-and-ask.
 **Spec ref:** §3.1 ("Gate: one shared family password"), §5 (`app_config` seed keys table).
 
 **Status:** RESOLVED.
+
+---
+
+### 2026-08-23 — PBKDF2 iterations reduced to 100,000 (Workers platform cap)
+
+**Decision:** PBKDF2 iterations reduced from spec §3.1's 600,000 to Cloudflare Workers' hard cap of 100,000.
+
+**Rationale:** Production logs showed `NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not supported (requested 600000)`. Workers enforces a hard platform ceiling at 100k iterations. The considered alternative was chaining 6×100k rounds to reach equivalent computational work, but PBKDF2 is CPU-bound and Workers enforce strict CPU-time limits, so this would trade a clean error for intermittent timeouts at peak load. Scrypt and Argon2 are unavailable in Workers WebCrypto. The compensating control is the existing per-IP rate limit of 10 attempts per 15 minutes (spec §3.1) plus the shared-password threat model — the password proves family membership, it does not identify anyone or protect high-value data. The owner explicitly approved this deviation.
+
+**Spec ref:** §3.1 ("Gate: one shared family password").
+
+**Status:** RESOLVED.

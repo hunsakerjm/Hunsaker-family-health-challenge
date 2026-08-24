@@ -57,6 +57,8 @@ config change).
   both.
 - **Points are snapshotted at write time** into `log_entries.points`, server-computed, never
   client-supplied. Changing a rule later does not silently rewrite history (spec §4.3).
+- **PBKDF2 iterations capped at 100,000 by Workers runtime** — do not raise toward spec §3.1's
+  600,000; it throws `NotSupportedError` at runtime. This is the platform ceiling, non-negotiable.
 
 ## The parallelism contract (spec §14)
 

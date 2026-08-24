@@ -182,6 +182,16 @@ specific hash subdomain, a first-deploy propagation delay, not an application bu
 `hunsaker-family.pages.dev` alias has a working cert and consistently returns 404, which is the
 URL that matters for the host-lock verification this task asked for.
 
+**2026-08-24T14:30:00Z** — Production bug fix: PBKDF2 iterations reduced from 600,000 to 100,000.
+Cloudflare Workers enforces a hard platform cap at 100k iterations; runtime logs showed
+`NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not supported (requested 600000)`.
+Reduced `PBKDF2_ITERATIONS` constant in `functions/_lib/crypto.ts` to `100_000` with explanatory
+comment. Updated `CLAUDE.md` hard rules with the platform ceiling and why it cannot be raised back.
+Appended decision entry to `Docs/DECISIONS.md` (2026-08-23 PBKDF2 entry) documenting the runtime
+error, Workers' hard cap, rejected alternatives (6×100k chaining trades timeout risk; scrypt/argon2
+unavailable), compensating controls (10 attempts/15 min rate limit + shared-password threat model),
+and owner approval. Typechecked and built successfully post-change.
+
 ## What's live right now
 - D1 production (`health-challenge`, id `3f848810-e935-4796-aefe-1d3dce54ab49`) and preview
   (`health-challenge-preview`, id `22e69832-9957-4499-b4db-1f1b16b92c77`), both migrated to

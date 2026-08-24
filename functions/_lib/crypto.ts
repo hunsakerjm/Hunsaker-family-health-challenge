@@ -1,7 +1,9 @@
 // WebCrypto primitives for the password gate (spec §3.1). Kept dependency
 // free — Workers ship WebCrypto natively, no need for nodejs_compat.
 
-export const PBKDF2_ITERATIONS = 600_000
+// Cloudflare Workers caps PBKDF2 at 100k iterations; spec §3.1 mandates
+// 600k, but Workers throws NotSupportedError if exceeded. Approved platform ceiling.
+export const PBKDF2_ITERATIONS = 100_000
 const SALT_BYTES = 16
 const HASH_BITS = 256
 
