@@ -3,7 +3,7 @@
 // for anyone but the viewer's own person — the server route this calls (GET /api/weights/:userId)
 // is a single-user query with no aggregate variant (see functions/_lib/weights.ts), and this
 // screen only ever passes its own userId to it.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronLeft, Pencil, Plus, Scale, Star, Trash2, TrendingDown, TrendingUp, X,
 } from 'lucide-react'
@@ -510,23 +510,68 @@ const MIN_WEIGHT_LB = 1
 const MAX_WEIGHT_LB = 1000
 const SAVE_BUTTON_HEIGHT = 46
 
+// Matches the empty string, a bare integer, or an integer with up to one decimal digit — the set
+// of strings a person passes through while typing "184.5" one keystroke at a time. Anything wider
+// (a second decimal point, a second decimal digit, a non-digit) is rejected at the keystroke, so
+// the field never needs to un-type something after the fact.
+const WEIGHT_DRAFT_PATTERN = /^\d{0,4}(\.\d{0,1})?$/
+
 export function WeightEntrySheet({
   theme, dateLabel, initialWeightLb, color, onColor, onSave, onDismiss,
 }: WeightEntrySheetProps) {
-  const [value, setValue] = useState(initialWeightLb)
+  // `committed` is the last known-good numeric weight — what steppers nudge from and what a bad
+  // or empty commit falls back to. `draft` is the text actually sitting in the input, which is
+  // allowed to be transiently empty or mid-decimal ("184.") while someone is still typing.
+  const [committed, setCommitted] = useState(initialWeightLb)
+  const [draft, setDraft] = useState(() => formatWeight(initialWeightLb))
   const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function currentDraftValue(): number {
+    const parsed = parseWeightDraft(draft)
+    return parsed === null ? committed : clampWeight(round(parsed))
+  }
 
   function handleDecrease() {
-    setValue((prev) => clampWeight(round(prev - WEIGHT_STEP_LB)))
+    const next = clampWeight(round(currentDraftValue() - WEIGHT_STEP_LB))
+    setCommitted(next)
+    setDraft(formatWeight(next))
   }
 
   function handleIncrease() {
-    setValue((prev) => clampWeight(round(prev + WEIGHT_STEP_LB)))
+    const next = clampWeight(round(currentDraftValue() + WEIGHT_STEP_LB))
+    setCommitted(next)
+    setDraft(formatWeight(next))
+  }
+
+  function handleDraftChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const next = event.target.value
+    if (WEIGHT_DRAFT_PATTERN.test(next)) {
+      setDraft(next)
+    }
+  }
+
+  // Selecting on focus (and again on a tap that lands in an already-focused field, since a tap
+  // does not re-fire focus) means a person can overwrite the whole value in one go instead of
+  // backspacing through it — the ten-second budget doesn't have room for that.
+  function selectAll(event: React.SyntheticEvent<HTMLInputElement>) {
+    event.currentTarget.select()
+  }
+
+  // Validation happens here, on commit, not on every keystroke — an empty or partial field is
+  // valid *while typing* and only needs to resolve to a real number when the person is done.
+  function commitDraft() {
+    const next = currentDraftValue()
+    setCommitted(next)
+    setDraft(formatWeight(next))
   }
 
   async function handleSave() {
+    const next = currentDraftValue()
+    setCommitted(next)
+    setDraft(formatWeight(next))
     setSaving(true)
-    await onSave(value)
+    await onSave(next)
     setSaving(false)
   }
 
@@ -548,14 +593,21 @@ export function WeightEntrySheet({
 
       <div className="flex items-center justify-center gap-4" style={{ marginBottom: 18 }}>
         <StepperButton theme={theme} label="Decrease" onClick={handleDecrease}>−</StepperButton>
-        <div
-          style={{
-            fontFamily: FONT_MONO, fontSize: 38, fontWeight: 600, color: theme.ink,
-            minWidth: 120, textAlign: 'center',
-          }}
-        >
-          {value.toFixed(WEIGHT_DECIMAL_PLACES)}
-        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-label="Weight in pounds"
+          value={draft}
+          onChange={handleDraftChange}
+          onFocus={selectAll}
+          onClick={selectAll}
+          onBlur={commitDraft}
+          style={weightInputStyle(theme.ink)}
+        />
         <StepperButton theme={theme} label="Increase" onClick={handleIncrease}>+</StepperButton>
       </div>
 
@@ -585,6 +637,38 @@ export function WeightEntrySheet({
       </p>
     </Sheet>
   )
+}
+
+function weightInputStyle(ink: string): React.CSSProperties {
+  return {
+    fontFamily: FONT_MONO,
+    // 16px is the iOS Safari floor below which focusing an input triggers an auto-zoom; the app
+    // is forbidden from disabling that zoom via the viewport, so the font itself has to clear it.
+    // 38px was already comfortably above that — this just documents why it must stay there.
+    fontSize: 38,
+    fontWeight: 600,
+    color: ink,
+    minWidth: 120,
+    width: 120,
+    textAlign: 'center',
+    background: 'none',
+    border: 'none',
+    outline: 'none',
+    padding: 0,
+    WebkitAppearance: 'none',
+  }
+}
+
+function formatWeight(value: number): string {
+  return value.toFixed(WEIGHT_DECIMAL_PLACES)
+}
+
+/** Empty or non-numeric drafts (mid-typing, or a bad paste) resolve to `null` so the caller can
+ * fall back to the last committed value rather than ever saving `NaN`. */
+function parseWeightDraft(draft: string): number | null {
+  if (draft.trim() === '' || draft === '.') return null
+  const parsed = Number(draft)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function round(value: number): number {
