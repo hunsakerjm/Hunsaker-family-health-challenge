@@ -270,12 +270,17 @@ interface WeightExtremesRow {
   baseline_flagged: number | null
   earliest: number | null
   latest: number | null
+  entry_count: number
 }
 
 /**
  * Returns a percent-lost figure only — never an object that could carry a pound value through to
- * a caller by accident. `null` means the person has no weight entries yet. Baseline is the
- * `is_baseline` row if one is set, else the earliest entry (spec §8.6).
+ * a caller by accident. `null` means the person has no weight entries yet, or has only one — with
+ * a single entry, baseline and "most recent" are the same row, so the only possible result is a
+ * misleading 0% (reads as "no progress" when the truth is "not enough data yet"); this mirrors the
+ * same rule in `src/lib/weight.ts`'s `computePercentLost`, and the two must never diverge. Baseline
+ * is the `is_baseline` row if one is set, else the earliest entry (spec §8.6). The entry count is
+ * folded into this one query rather than a second round trip (spec §9: aggregate in SQL).
  */
 export async function computeWeightPercentLost(db: D1Database, userId: string): Promise<number | null> {
   const row = await db
@@ -283,12 +288,13 @@ export async function computeWeightPercentLost(db: D1Database, userId: string): 
       `SELECT
          (SELECT weight_lb FROM weight_entries WHERE user_id = ? AND is_baseline = 1) as baseline_flagged,
          (SELECT weight_lb FROM weight_entries WHERE user_id = ? ORDER BY log_date ASC LIMIT 1) as earliest,
-         (SELECT weight_lb FROM weight_entries WHERE user_id = ? ORDER BY log_date DESC LIMIT 1) as latest`,
+         (SELECT weight_lb FROM weight_entries WHERE user_id = ? ORDER BY log_date DESC LIMIT 1) as latest,
+         (SELECT COUNT(*) FROM weight_entries WHERE user_id = ?) as entry_count`,
     )
-    .bind(userId, userId, userId)
+    .bind(userId, userId, userId, userId)
     .first<WeightExtremesRow>()
 
-  if (!row || row.latest === null) return null
+  if (!row || row.latest === null || row.entry_count < 2) return null
   const baseline = row.baseline_flagged ?? row.earliest
   if (baseline === null || baseline === 0) return null
   return ((baseline - row.latest) / baseline) * 100

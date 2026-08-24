@@ -39,8 +39,13 @@ export function findMostRecentEntry(entries: readonly WeightEntry[]): WeightEntr
  * weight, negative means gained (spec §8.5 sorts a negative result to the bottom of the weight
  * standings — this function only computes the number, callers decide how to display it). Null
  * when there's nothing to compute from, including the divide-by-zero guard on a corrupt baseline.
+ *
+ * Also null with exactly one entry: with only one weigh-in, baseline and "most recent" resolve to
+ * the same row, so the only possible result is a misleading 0% — reading as "no progress" when
+ * the truth is "not enough data yet." A real percentage needs at least two entries to compare.
  */
 export function computePercentLost(entries: readonly WeightEntry[]): number | null {
+  if (entries.length < 2) return null
   const baseline = resolveBaselineEntry(entries)
   const mostRecent = findMostRecentEntry(entries)
   if (!baseline || !mostRecent || baseline.weight_lb === 0) return null

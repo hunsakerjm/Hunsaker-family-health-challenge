@@ -328,3 +328,18 @@ routing flush results back into a screen that may no longer be mounted is real a
 a light-gamification feature the spec itself calls secondary to logging; a rare missed celebration
 on a momentarily-offline checkbox tap is an acceptable, honestly-scoped gap. **Spec ref:** §10,
 §11.2. **Status:** RESOLVED.
+
+### 2026-08-24 — Weight percent-lost requires at least two entries, not just a nonzero baseline
+
+**Decision — `computePercentLost` (`src/lib/weight.ts`) and `computeWeightPercentLost`
+(`functions/_lib/stats.ts`) both return `null` for exactly one weight entry, not just for zero.**
+With a single entry, baseline and "most recent" resolve to the same row, so the formula's only
+possible output is 0% — which reads as "no progress made" when the truth is "not enough data yet."
+`functions/_lib/stats.ts` folds an entry count into its existing single-query `SELECT` (no second
+round trip) and gates on it alongside the existing zero-baseline guard; `loadWeightStatsEntries`'s
+pre-existing `if (percentLost === null) continue` then correctly drops a single-weigh-in person out
+of the weight standings, same as someone with no entries. **Rationale:** spec §8.6 defines the
+percentage formula but is silent on the single-entry case; treating it as "no data yet" rather than
+"0% progress" matches how every other null case in this module is already read by callers, and
+avoids a person's first weigh-in ever displaying as a discouraging flat 0%. **Spec ref:** §8.6,
+§8.5 #5, §9. **Status:** RESOLVED.

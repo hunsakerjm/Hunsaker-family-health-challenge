@@ -133,7 +133,7 @@ export function WeightDetailScreen({
         {actionError && <ErrorNotice message={actionError} />}
         <PendingIndicator theme={theme} />
 
-        <PercentHero theme={theme} color={color.hex} percentLost={percentLost} />
+        <PercentHero theme={theme} color={color.hex} percentLost={percentLost} entryCount={sorted.length} />
 
         {sorted.length >= 2 && (
           <div style={{ marginTop: 16 }}>
@@ -266,16 +266,23 @@ function WeightHeader({
 // ---------------------------------------------------------------------------
 
 function PercentHero({
-  theme, color, percentLost,
+  theme, color, percentLost, entryCount,
 }: {
   theme: ThemeSurfaces
   color: string
   percentLost: number | null
+  entryCount: number
 }) {
   const hasData = percentLost !== null
   const isLoss = hasData && percentLost >= 0
   const Icon = isLoss ? TrendingDown : TrendingUp
   const displayValue = hasData ? `${percentLost.toFixed(1)}%` : '—'
+  // Zero entries and exactly one entry both resolve to `null` (see computePercentLost), but they
+  // are different situations for the person reading this: one has nothing logged yet, the other
+  // is one weigh-in away from seeing real progress. Same placeholder treatment, different words.
+  const noDataMessage = entryCount === 0
+    ? 'Log a weight to start tracking.'
+    : 'Log one more weight entry to see your percent change.'
 
   return (
     <Card theme={theme} padded style={{ textAlign: 'center' }}>
@@ -290,7 +297,7 @@ function PercentHero({
       </div>
       {!hasData && (
         <p style={{ ...TYPE_SCALE.caption, color: theme.muted, marginTop: 6 }}>
-          Log a weight to start tracking.
+          {noDataMessage}
         </p>
       )}
     </Card>

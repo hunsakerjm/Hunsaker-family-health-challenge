@@ -86,12 +86,20 @@ describe('computePercentLost', () => {
     expect(computePercentLost([])).toBeNull()
   })
 
-  it('is null with a single entry (baseline equals most recent, but spec wants a real change)', () => {
-    // Not asserting a specific number here — a single entry means baseline === most recent, so
-    // the math below (0%) is technically correct; this case documents that a single-entry series
-    // legitimately reports 0%, not null, and callers must not read 0% as "no data."
+  it('is null with a single entry, even though the math would resolve to 0%', () => {
+    // A single entry means baseline === most recent, so the raw math below is 0% — but 0% reads
+    // as "no progress made" when the truth is "not enough data yet." One entry must report null,
+    // same as zero entries, until a second one exists to compare against.
     const entries = [makeEntry({ log_date: '2026-09-01', weight_lb: 190 })]
-    expect(computePercentLost(entries)).toBe(0)
+    expect(computePercentLost(entries)).toBeNull()
+  })
+
+  it('computes normally once a second entry exists', () => {
+    const entries = [
+      makeEntry({ log_date: '2026-09-01', weight_lb: 200 }),
+      makeEntry({ log_date: '2026-09-30', weight_lb: 190 }),
+    ]
+    expect(computePercentLost(entries)).toBeCloseTo(5, 5)
   })
 
   it('is positive when weight decreased from baseline', () => {
