@@ -6,9 +6,9 @@ This is the orchestrator's recovery file. If session context is cleared or token
 
 ## Current state
 
-**Overall status:** Phases 0, 1, 2, 3, and 4 COMPLETE — merged to `main`, deployed, verified in production at `https://hunsaker-family.com`. Every tab is wired (Today, Calendar, Standings, Settings). Offline operation and PWA install working end-to-end. **Phase 5 (launch readiness) is the only remaining phase and is unblocked.** Current state of the data: the database has **1 user (Josh, blue, in both points and weight challenges)**. All Phase 4 test entries deleted post-verification per owner request.
+**Overall status:** All six phases (0 through 5) COMPLETE — code merged to `main` and deployed to production at `https://hunsaker-family.com`. Every tab is wired (Today, Calendar, Standings, Settings). Offline operation, PWA install, ambient motion, and month recap all working end-to-end. **Phase 5 code is complete and deployed; spec §15 acceptance checklist partially verified on device, remainder outstanding with the owner.** Current state of the data: the database has **1 user (Josh, blue, in both points and weight challenges), 6 rules, 0 log entries, 0 weight entries**. All Phase 4 test entries deleted post-verification per owner request.
 **Active branches:** None — all complete phases merged and deployed.
-**Last updated:** 2026-08-24 (Phase 4 complete and deployed to production, verified on physical iPhone)
+**Last updated:** 2026-08-24 (Phase 5 complete and deployed to production; §15 checklist partially verified on physical iPhone)
 
 ## Owner inputs
 
@@ -32,7 +32,7 @@ All four spec §0 inputs are now resolved and recorded. No further owner questio
 | **Phase 3B** Standings | Leaderboard, ribbon, completion radar, consistency chart, weight-% tab, month filter, person toggles | Phase 2 | `phase-3b-standings` | **DONE — merged + deployed** | Lazy-loaded route; Recharts isolated in a 96.23 kB gzip chunk, not touching Today screen. Tie handling and ribbon signature element working. |
 | **Phase 3C** Settings | People manager, identity editor, rule editor with effective dates, config editor, password change, CSV export | Phase 2 | `phase-3c-settings` | **DONE — merged + deployed** | People manager, rule editor with effective dates, config editor, password change, CSV export all deployed. No redeploy needed to add people or rules. |
 | **Phase 4** Offline / PWA | Manifest, icons, service worker, IndexedDB queue, `/api/sync/batch`, optimistic UI, safe areas, install hint, CSP/headers | Phase 2 (may start after 3A/3B/3C begin) | `phase-4-offline`, `phase-4a-pwa-shell`, `phase-4b-offline-sync` | **DONE — merged + deployed** | Service worker: GET-only interception, app shell precache (required/optional split), network-first `/api/**` with fallback, cache-first hashed `/assets/**`, `/api/export.csv` and `/api/auth/**` never cached. `POST /api/sync/batch`: mixed log+weight ops, sequential, reusing scoring/validation, idempotent. IndexedDB offline queue with FIFO flush on `online` and `visibilitychange`. Optimistic UI + `PendingIndicator` on Today, Calendar, WeightDetail. Manifest, maskable icons, CSP `default-src 'self'` + specific directives. Weight sheet: numeric input + steppers. Single-weigh-in people drop from weight standings (baseline = most recent = 0%). Verified: full day in airplane mode syncs correctly on reconnect, writes queued and flushed in one `/api/sync/batch` round trip. |
-| **Phase 5** Launch readiness | Ambient motion, month recap, D1 → R2 backup procedure, README, acceptance checklist | Phase 3 + 4 | `phase-5-launch` | NOT STARTED — unblocked | Built last, removable. Scheduled backup to R2 + restore procedure. Full §15 checklist on real iPhone. Owner must reset `challenge_start` from 2026-08-24 to 2026-09-01 before family launch. |
+| **Phase 5** Launch readiness | Ambient motion, month recap, D1 → R2 backup procedure, README, acceptance checklist | Phase 3 + 4 | `phase-5-launch`, `phase-5a-recap-motion`, `phase-5b-backup-readme` | **DONE — merged + deployed** | Month recap (first-open-of-month screen, per-device via `lastRecapShown` localStorage), ambient motion (calendar pips stagger in, leaderboard bars grow from zero, ribbon wipes), D1 → R2 backup and restore procedure verified. Scheduled automated backups declined by owner (Cloudflare Pages cannot run cron; manually-triggered export at Settings → Export remains). §15 acceptance checklist partially verified on physical iPhone; full checklist outstanding with owner. Code complete and deployed v0.9.1. |
 
 ## Verification snapshot — Phase 4 complete and deployed
 
@@ -70,18 +70,23 @@ All four spec §0 inputs are now resolved and recorded. No further owner questio
 
 **Current state of the data:** The database has **1 user (Josh, blue, in both points and weight challenges)**. Seed deliberately creates no users (spec §5); Josh was added during Phase 4 verification and remains as baseline user. Phase 4 test entries (2026-08-24) were deleted post-verification per owner request.
 
-## Next phase — Phase 5 (launch readiness)
+## Phase 5 — Complete
 
-Phase 5 is the final phase before family launch (2026-09-01). It owns ambient motion, month recap, backup procedure to R2, README, and full acceptance checklist per spec §14 and §15:
-- Ambient motion (parallax, scroll effects, subtle animations)
-- Month recap screen (end-of-month summary and celebration)
-- D1 → R2 backup procedure and restore process
-- README with installation and usage instructions
-- Full §15 checklist verified on physical iPhone (safe areas, notch, Dynamic Island, emoji keyboard, install flow)
+Phase 5 delivered ambient motion, month recap, backup and restore documentation, and the acceptance checklist infrastructure. **Code is complete, merged to `main`, and deployed as v0.9.1.**
 
-**Status:** Phase 4 complete. Phase 5 is unblocked and ready to begin.
+**What shipped:**
+- **Month recap** (`src/screens/MonthRecap.tsx`, `src/lib/recap.ts`): Full-screen panel on first open of a new calendar month showing the previous month's total as the hero number. Tap to dismiss. Per-device via `lastRecapShown` localStorage key. Suppressed in the challenge's first month. No burst under the `subtle` intensity setting. Plain-statement variant for a month with no entries. Fires the month after the challenge ends. Eligibility decided before any network call — adds no request overhead on ordinary app open.
+- **Ambient motion** (`src/lib/useAmbientMotion.ts`): Calendar pips stagger in, leaderboard bars grow from zero, ribbon wipes left to right. One hook, reusing `getCelebrationIntensity()` so `prefers-reduced-motion` is inherited. See `Docs/PHASE5A_LOG.md` for removability documentation per spec §11.2.
+- **Backup and restore documentation** in `README.md`: Verified `wrangler d1 export` procedure plus restore procedure targeting a fresh database (exports lack `IF NOT EXISTS`, so they fail over a populated database).
 
-**Critical action (owner):** `challenge_start` in production config is currently 2026-08-24 (set to allow Phase 4 on-device testing). It **must be reset to 2026-09-01** before the family begins using the app. The owner has confirmed they will do this.
+**Owner decision on backups (supersedes earlier Phase 5B notes):** Scheduled/automated backups were **declined**. Cloudflare Pages projects cannot run cron triggers, so a scheduled D1→R2 export would have required a separate standalone Worker plus an R2 bucket. The Worker was written, reviewed, and **deleted** (v0.9.1) rather than left dormant. Two on-demand paths remain: the session-protected CSV export at Settings → Export (`/api/export.csv`, spec §9's "load-bearing" export), and manual `wrangler d1 export` for disaster recovery. Spec §12's "or at minimum" clause sanctions this. Reversible — git history retains the Worker.
+
+**Outstanding (all owner tasks, no code work outstanding):**
+- Finish the spec §15 acceptance checklist on a physical iPhone. Note: both DST transitions to test are `2026-11-01` and `2027-03-14` (spec's `2027-03-08` is a Monday and is wrong).
+- Add the remaining family members through Settings → People.
+- Distribute the URL and the shared password to the family.
+
+**Note:** `challenge_start` was reset to `2026-09-01` by the owner and verified in production D1 on 2026-08-24. With `backfill_limit_days = 0` (unlimited) and `future_logging_days = 7`, the editable date window is currently empty (min = challenge start = Sept 1; max = today + 7 = Aug 31). Checkboxes are therefore inert until 2026-09-01. This is correct behavior, not a defect, and resolves itself on Sept 1. **No further reset action needed.**
 
 ## The shared contract
 
@@ -214,7 +219,18 @@ spec/CLAUDE.md date error: 2027-03-08 is not a real DST transition (real one is 
 **Decisions recorded as closed (owner decision — not outstanding work):**
 - *First-run dead end:* App gates behind `showWhoami || !activeUserId`; identity picker's empty state directs to Settings (only reachable through gate). **Owner decision: not fixing** — owner is seeded in database, empty state no longer reachable.
 - *Offline marker treatment:* Spec describes per-entry "Saved on this device" marker; shipped as single `PendingIndicator` count at top. **Owner decision: count stands.**
+- *Challenge start deadline:* ~~`challenge_start` in production config was 2026-08-24 (temporary, for Phase 4 on-device testing). Must be reset to 2026-09-01 before family launch.~~ **DONE** — Owner reset to `2026-09-01` and verified in production D1 on 2026-08-24.
 
-**Action still outstanding (owner):** `challenge_start` in production config is 2026-08-24 (temporary, for Phase 4 on-device testing). **Must be reset to 2026-09-01 before family launch.** Owner confirmed they will handle this. This is the one deadline item.
+**2026-08-24 00:00** — **Phase 5 COMPLETE, merged and deployed to production as v0.9.1.** Three tracks (`phase-5-launch`, `phase-5a-recap-motion`, `phase-5b-backup-readme`) ran in isolated worktrees with no collisions. Delivered:
 
-**Phase 5 unblocked and ready to begin.**
+**Ambient motion:** Calendar pips stagger in, leaderboard bars grow from zero, ribbon wipes left to right via `src/lib/useAmbientMotion.ts`. Reuses `getCelebrationIntensity()` so `prefers-reduced-motion` is inherited. Removability documented in `Docs/PHASE5A_LOG.md` per spec §11.2.
+
+**Month recap:** Full-screen panel showing previous month's total, fires on first open of a new calendar month. Per-device via `lastRecapShown` localStorage. Suppressed in challenge's first month, no burst under `subtle` intensity, plain-statement variant for months with no entries. Eligibility determined before any network call — zero overhead on ordinary app open. Implemented in `src/screens/MonthRecap.tsx` and `src/lib/recap.ts`.
+
+**Backup and restore:** `wrangler d1 export` procedure verified + restore procedure targeting fresh database documented in `README.md`. Scheduled automated backup to R2 **declined by owner** — Cloudflare Pages cannot run cron triggers, and a standalone Worker + R2 would require additional infrastructure. The Worker was written, reviewed, and deleted. Two on-demand paths remain: session-protected CSV export at Settings → Export (`/api/export.csv`) and manual `wrangler d1 export` for disaster recovery.
+
+**Production deployment (2026-08-24):** `npx wrangler pages deploy dist --project-name hunsaker-family --branch main`. All endpoints verified. Database state: 1 user (Josh), 6 rules, 0 log entries, 0 weight entries.
+
+**Spec §15 acceptance checklist:** Partially verified on physical iPhone. Both DST transitions to test are `2026-11-01` (fall back) and `2027-03-14` (spring forward) — spec's `2027-03-08` is incorrect (Monday, not a transition). Full checklist outstanding with owner.
+
+**Owner decision:** `challenge_start` reset to `2026-09-01` (verified in production D1 on 2026-08-24). With `backfill_limit_days = 0` and `future_logging_days = 7`, editable date window is currently empty (min = Sept 1, max = Aug 31). Checkboxes inert until Sept 1 — correct behavior. **All six phases complete.** No Phase 6 exists — spec §14 defines exactly six.
