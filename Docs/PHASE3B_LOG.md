@@ -5,7 +5,13 @@ Resilience file per orchestrator brief: append a timestamped line after every di
 
 ## Remaining
 
-- Everything. Just started.
+- Install `recharts`, verify it lazy-loads (separate chunk, never in Today's bundle).
+- `src/components/charts/HabitRadar.tsx` (recharts, React.lazy-loaded only from Standings.tsx).
+- `src/components/charts/Ribbon.tsx` (plain divs, no recharts — matches mockup).
+- `src/screens/Standings.tsx` — leaderboard, ribbon, radar + person toggles, consistency widget,
+  weight tab, month segmented control + month-picker sheet.
+- `npm run build` — capture chunk list as evidence of the Recharts split, check gzip budget.
+- Final report: exact route/import line for App.tsx, verification output.
 
 ## Log
 
@@ -49,3 +55,33 @@ existing routes (`api/logs/[userId]/[date].ts`, `api/users/index.ts`, `api/_midd
 
 Next: invoke `frontend-design` and `dataviz` skills, then design the stats endpoints and start
 building `functions/_lib/stats.ts` + `functions/api/stats/**`.
+
+**2026-08-24 05:30** — Invoked `frontend-design` and `dataviz` skills (both required before any
+chart/frontend code, per brief). Since the design system here is already fully specified (spec
+§11.1 tokens in `theme.ts`, mockup as visual source of truth), `frontend-design`'s "pick a bold new
+aesthetic" guidance doesn't apply — I match the existing system exactly instead of inventing one.
+From `dataviz`: person colors are a fixed per-user data contract (spec §7's 16-color palette,
+already AA-checked with an `on` color per swatch), not a categorical palette I get to choose, so I
+did not run the palette validator against it — it's out of scope to redesign. Applied `dataviz`'s
+mark specs (thin strokes, sparing direct labels, legend-as-toggle-chips already matches
+`PersonChip`, tabular numerals per spec §11.1 which explicitly overrides the skill's generic
+"proportional for big numbers" guidance — project tokens win).
+
+**2026-08-24 05:45** — Built the backend: `functions/_lib/statsMath.ts` (pure date-range/window/
+tie-ranking math) and `functions/_lib/stats.ts` (D1 aggregation — SUM/COUNT/GROUP BY in SQL,
+window intersection in JS, same split as the existing `scoring.ts`/`logs.ts` pair). Four routes:
+`functions/api/stats/{leaderboard,rules,ribbon,weight}.ts`. Added `RibbonDayCell.eligible: boolean`
+to `src/types.ts` (additive contract change, documented inline and here — no other track reads
+`RibbonResponse` yet). Weight privacy made structural: `computeWeightPercentLost` is the only
+function in the codebase that reads `weight_entries.weight_lb`, and its return type is `number |
+null` — no object shape exists in this path that could carry a pound value to a caller by
+accident. `npx tsc --noEmit` and `-p functions/tsconfig.json` both exit 0. Committed
+(`wip: stats backend`).
+
+**2026-08-24 05:55** — Added `functions/_lib/statsMath.test.ts` (window/tie logic — the two
+categories Appendix B and this track's brief call out) and `functions/_lib/stats.test.ts`
+(period/month parsing). 36 new tests, 102/102 total passing, both typechecks clean. Committed
+(`test: statsMath and stats period-parsing unit tests`). DB-touching aggregation itself
+(leaderboard/rules/ribbon/weight SQL) is NOT unit-tested with a mock D1 — matches this repo's
+existing convention (no other route in the codebase has DB-mock tests either; CLAUDE.md scopes
+automated tests to pure logic, everything else to the spec §15 physical-device walkthrough).
