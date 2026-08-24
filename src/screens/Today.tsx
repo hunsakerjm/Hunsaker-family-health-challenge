@@ -11,13 +11,13 @@ import {
   type MouseEvent,
 } from 'react'
 import { Check, ChevronRight, Flame, Scale } from 'lucide-react'
-import {
-  putLog, getLogs, getWeights, putWeight, ApiError,
-} from '../api'
+import { getLogs, getWeights, ApiError } from '../api'
 import { Sheet, SheetButton } from '../components/Sheet'
 import { Banner } from '../components/Banner'
+import { PendingIndicator } from '../components/PendingIndicator'
 import type { PersonSummary } from '../components/person'
 import { iconForRule } from '../lib/ruleIcons'
+import { queuedPutLog, queuedPutWeight } from '../lib/offline/queue'
 import { WeightEntrySheet } from './WeightDetail'
 import {
   originFromPointerEvent,
@@ -217,7 +217,16 @@ export function TodayScreen({
     setSaveError(null)
 
     try {
-      const response = await putLog(viewedUserId, date, { [rule.key]: rawValue }, ownUserId)
+      const result = await queuedPutLog(viewedUserId, date, { [rule.key]: rawValue }, ownUserId)
+      if (result.status === 'queued') {
+        // Offline write: the optimistic entry set above stays as-is (never rolled back), and the
+        // global PendingIndicator (subscribed to the same queue) is what tells the person this
+        // hasn't reached the server yet. No celebration — see celebrateIfNewTier's neighboring
+        // comment in this file for why a queued write can't fire one: there is no server response
+        // to celebrate off of yet.
+        return
+      }
+      const response = result.data
       setLogsByMonth((prev) => replaceDayInCache(prev, cacheKey, date, response))
       const turnedOn = response.points_total > previousPointsTotal
       // Spec §11.2: "Backfilling a past day plays the full sequence; it's the same
@@ -233,6 +242,12 @@ export function TodayScreen({
     }
   }
 
+  // Only ever called with a real server-returned DayLogState (see submitRuleValue above) — a
+  // queued/offline write has no server response to build one from, and fabricating one to keep the
+  // celebration would risk celebrating a write the server later rejects. Deliberate scope decision
+  // (see Docs/PHASE4B_LOG.md): a write that goes offline never celebrates, even after the queue
+  // later flushes — `flushQueue` talks to `/api/sync/batch` directly and never re-enters this
+  // screen's code, so there is no later moment this function runs "for real" on that op's behalf.
   function celebrateIfNewTier(response: DayLogState, pointerEvent?: MouseEvent) {
     if (response.max_points_for_date <= 0) return
     const ratio = response.points_total / response.max_points_for_date
@@ -282,8 +297,11 @@ export function TodayScreen({
   async function handleSaveWeight(weightLb: number) {
     try {
       // §11.2: "No celebration of any kind fires on a weight entry" — this intentionally never
-      // touches celebrateIfNewTier, unlike submitRuleValue above.
-      await putWeight(ownUserId, date, weightLb, ownUserId)
+      // touches celebrateIfNewTier, unlike submitRuleValue above. Today.tsx doesn't cache weight
+      // values locally (only a lazy prefill lookup on open, see handleOpenWeightSheet), so a
+      // `{status:'queued'}` result needs no local reconciliation beyond dismissing the sheet — the
+      // global PendingIndicator already reflects the queued write.
+      await queuedPutWeight(ownUserId, date, weightLb, ownUserId)
       setShowWeightSheet(false)
     } catch (error) {
       setSaveError(error instanceof ApiError ? error.message : GENERIC_SAVE_ERROR)
@@ -315,6 +333,7 @@ export function TodayScreen({
 
       <div className="px-4" style={{ paddingTop: 14, paddingBottom: 20 }}>
         {saveError && <SaveErrorNotice message={saveError} />}
+        <PendingIndicator theme={theme} />
 
         <RuleList
           theme={theme}
