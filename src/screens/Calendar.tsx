@@ -526,7 +526,8 @@ function DayCell({
 }) {
   const wasTouched = points !== null
   const isPerfect = wasTouched && max > 0 && points === max
-  const background = wasTouched ? tint(color, theme, calendarCellTintStep(points, max)) : 'transparent'
+  const tintStep = wasTouched ? calendarCellTintStep(points, max) : 0
+  const background = wasTouched ? tint(color, theme, tintStep) : 'transparent'
   const border = isToday
     ? `1.5px solid ${color}`
     : `1px solid ${wasTouched ? theme.hairline : 'transparent'}`
@@ -689,7 +690,10 @@ function WeightSummaryLink({ theme, onTap }: { theme: ThemeSurfaces; onTap: () =
       }}
     >
       <Scale size={17} color={theme.muted} />
-      <span className="flex-1 text-left" style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 500, color: theme.muted }}>
+      <span
+        className="flex-1 text-left"
+        style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 500, color: theme.muted }}
+      >
         Weight history
       </span>
       <ChevronRight size={16} color={theme.muted} />
@@ -707,7 +711,10 @@ function ErrorNotice({ message }: { message: string }) {
 
 function MissingPersonNotice({ theme }: { theme: ThemeSurfaces }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center px-6" style={{ background: theme.paper }}>
+    <div
+      className="flex min-h-dvh items-center justify-center px-6"
+      style={{ background: theme.paper }}
+    >
       <p style={{ ...TYPE_SCALE.caption, color: theme.muted, textAlign: 'center' }}>
         This person could not be found.
       </p>

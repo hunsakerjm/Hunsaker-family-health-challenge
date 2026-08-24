@@ -66,12 +66,47 @@
   person switcher sheet, month nav (buttons + swipe), weight glyph (own calendar only, opens
   `WeightEntrySheet`), header stats (month total / days logged / best day).
 - Added tests: `src/lib/weight.test.ts` (baseline resolution, percent-lost math, empty/zero-guard
-  cases).
-- Ran verification: see "Verification" section below, appended once run.
+  cases), plus new `getWeekdayIndex`/`stepMonthKey` tests appended to the existing
+  `src/lib/dates.test.ts` (additive only — no existing test edited).
+- Added `getWeekdayIndex` and `stepMonthKey` to shared `src/lib/dates.ts` (purely additive exports,
+  no existing export touched) — the calendar month grid needs a leading-blank-cell count and a
+  month-stepper, and neither existed yet. `stepMonthKey` is written generically enough that 3B's
+  Standings month picker (§8.5) can reuse it instead of re-deriving the same logic.
+- Fixed a real bug found during review: the calendar's weight-glyph quick-edit sheet originally
+  defaulted to a neutral placeholder value even when editing an EXISTING entry (a stubbed
+  `findExistingWeightForDate` that never looked anything up). Replaced the `Set<string>`
+  weight-dates cache with a `Map<string, number>` (date -> pounds) so the quick-edit sheet now
+  prefills the real stored value when correcting a date, and a documented neutral default only
+  when logging a brand new entry.
+- Bounded Calendar's month navigation to `[challenge_start, challenge_end]` via `config` (was
+  initially unused, which is also what caught this in `noUnusedLocals`) — swiping/tapping past the
+  challenge window would only ever show empty months.
+- Style pass: wrapped every JSX/style line over ~100 chars that was easy to shorten without hurting
+  readability; left a handful of comment lines at 101-111 chars where wrapping would have hurt
+  more than it helped (matches existing tolerance already present in Phase 2's files, e.g.
+  `functions/api/logs/[userId]/[date].ts`).
+- Verification, all green:
+  - `npx vitest run` — **89/89 passed** (66 pre-existing + 4 `getWeekdayIndex` + 6 `stepMonthKey` +
+    13 `src/lib/weight.test.ts`). Exit 0.
+  - `npx tsc --noEmit` — exit 0.
+  - `npx tsc --noEmit -p functions/tsconfig.json` — exit 0.
+  - `npm run build` — exit 0. Main bundle unchanged at **62.74 kB gzip** (Calendar.tsx and
+    WeightDetail.tsx are not yet imported by `App.tsx` per the file-ownership boundary, so they
+    aren't in this build). Measured the real impact with a throwaway local edit to `App.tsx`
+    (wired both screens into the tab switch with real props, built, then `git checkout -- src/
+    App.tsx` to fully revert — confirmed via `git status` that App.tsx has zero diff from the
+    committed state afterward): **67.58 kB gzip** with both screens eagerly included, i.e. **+4.84
+    kB gzip** for both new screens combined. Well inside the §12 250KB budget (all-chunks total
+    would be ~75.4 kB gzip: 67.58 main + 3.58 CSS + 4.20 confetti).
+- Final commit made; see the end-of-session report to the orchestrator for exact route/import
+  lines, the `Today.tsx` wiring contract, and the privacy/decision summary.
 
 ## Remaining
 
-- Run `npx vitest run`, `npx tsc --noEmit`, `npx tsc --noEmit -p functions/tsconfig.json`,
-  `npm run build`, record gzip delta, fix anything red.
-- Final commit + report back to orchestrator with exact route/import lines for `App.tsx` and what
-  `Today.tsx` needs to call.
+Nothing outstanding in this track's ownership. Everything above is committed on
+`phase-3a-calendar-weight`. What's left is orchestrator work, out of this agent's file ownership:
+wiring `<CalendarScreen>` and `<WeightDetailScreen>` into `src/App.tsx`'s tab switch, adding an
+`initialDate`-style prop to `Today.tsx` if "tapping a calendar day opens that day's log" should
+land on that exact date (currently `Today.tsx` always opens on `serverToday`), and replacing
+`Today.tsx`'s `WeightComingSoonSheet` with the exported `WeightEntrySheet` from
+`src/screens/WeightDetail.tsx`. Full detail in the final report.

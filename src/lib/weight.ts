@@ -10,8 +10,8 @@ function compareByLogDate(a: WeightEntry, b: WeightEntry): number {
   return compareDates(a.log_date, b.log_date)
 }
 
-/** Oldest first. The sparkline, the baseline default, and "most recent" all derive from this one
- * sort rather than trusting array order from the API. */
+/** Oldest first. The sparkline, the baseline default, and "most recent" all derive from this
+ * one sort rather than trusting array order from the API. */
 export function sortEntriesByDateAscending(entries: readonly WeightEntry[]): WeightEntry[] {
   return [...entries].sort(compareByLogDate)
 }
@@ -27,7 +27,7 @@ export function resolveBaselineEntry(entries: readonly WeightEntry[]): WeightEnt
   return sortEntriesByDateAscending(entries)[0]
 }
 
-/** The latest dated entry, by `log_date` — not by array or fetch order. Null for an empty series. */
+/** The latest dated entry, by `log_date` — not by array/fetch order. Null for an empty series. */
 export function findMostRecentEntry(entries: readonly WeightEntry[]): WeightEntry | null {
   if (entries.length === 0) return null
   const sorted = sortEntriesByDateAscending(entries)

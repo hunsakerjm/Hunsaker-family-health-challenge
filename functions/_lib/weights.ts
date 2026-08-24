@@ -84,7 +84,11 @@ export async function upsertWeightEntry(
     .run()
 }
 
-export async function deleteWeightEntry(db: D1Database, userId: string, date: string): Promise<void> {
+export async function deleteWeightEntry(
+  db: D1Database,
+  userId: string,
+  date: string,
+): Promise<void> {
   await db
     .prepare(`DELETE FROM weight_entries WHERE user_id = ? AND log_date = ?`)
     .bind(userId, date)

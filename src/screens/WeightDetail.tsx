@@ -206,7 +206,10 @@ function WeightHeader({
   onBack: () => void
 }) {
   return (
-    <div className="flex items-center gap-3" style={{ background: color, padding: '18px 16px 16px' }}>
+    <div
+      className="flex items-center gap-3"
+      style={{ background: color, padding: '18px 16px 16px' }}
+    >
       <button
         type="button"
         onClick={onBack}
@@ -285,7 +288,14 @@ function Sparkline({
         role="img"
         aria-label="Weight over time"
       >
-        <polyline points={points} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
       </svg>
     </Card>
   )
@@ -507,7 +517,12 @@ export function WeightEntrySheet({
 
       <div className="flex items-center justify-center gap-4" style={{ marginBottom: 18 }}>
         <StepperButton theme={theme} label="Decrease" onClick={handleDecrease}>−</StepperButton>
-        <div style={{ fontFamily: FONT_MONO, fontSize: 38, fontWeight: 600, color: theme.ink, minWidth: 120, textAlign: 'center' }}>
+        <div
+          style={{
+            fontFamily: FONT_MONO, fontSize: 38, fontWeight: 600, color: theme.ink,
+            minWidth: 120, textAlign: 'center',
+          }}
+        >
           {value.toFixed(WEIGHT_DECIMAL_PLACES)}
         </div>
         <StepperButton theme={theme} label="Increase" onClick={handleIncrease}>+</StepperButton>
