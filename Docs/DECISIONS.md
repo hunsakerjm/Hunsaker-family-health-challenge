@@ -149,3 +149,37 @@ as a stop-and-ask.
 **Spec ref:** §3.1 ("Gate: one shared family password").
 
 **Status:** RESOLVED.
+
+---
+
+### 2026-08-23 — Celebration system: subtle-tier ratio cap, and additive optional fields on `CelebrationTrigger`
+
+**Decision (1 of 2):** Under the `subtle` device setting, `playCelebration` caps the effective
+ratio at `0.33` — the top edge of the escalation table's two "barely there" rows — rather than the
+approved mockup's illustrative cap of `0.5` (which reaches the "small" tier).
+
+**Rationale:** Spec §11.2 describes `subtle` as "bottom-tier flicks... only; no top-tier
+fireworks." Read literally against the escalation table, "bottom-tier" names the two ~0.17/~0.33
+"barely there" rows specifically, not the ~0.5 "small" row. The mockup's own header comment marks
+only the escalation curve in `TIERS()` as binding — the app-shell `celebrate()` wrapper that
+applies the subtle cap is explicitly illustrative, so its `0.5` value carries no special weight
+here. This is reversible (a single constant, `SUBTLE_RATIO_CAP` in `src/lib/celebration.ts`) and
+cheap to change if the owner or a later reviewer prefers the mockup's looser reading.
+
+**Decision (2 of 2):** `CelebrationTrigger` (the pinned Phase 2a/2b contract) gains two **optional**
+fields not in the original two-field signature: `color?: string` and
+`origin?: { x: number; y: number }`. Both required fields (`pointsAfter`, `maxPointsForDay`) are
+unchanged, so any call already written against the original signature still compiles and runs
+(falling back to a neutral default color and a center-ish origin).
+
+**Rationale:** Spec §11.2 requires bursts in "the user's color" and originating from "the tap
+coordinates," but the pinned two-field contract has no way to express either. Adding required
+fields would break Phase 2a's already-written calls; adding them as optional preserves backward
+compatibility while making full spec fidelity reachable for whoever wires up the real Today-screen
+call site. Flagged prominently in the Phase 2b final report per the task's instruction to call out
+any signature change, even though this one is additive/non-breaking.
+
+**Spec ref:** §11.2 ("The setting", "All bursts originate at the tap coordinates", the escalation
+table).
+
+**Status:** RESOLVED.
