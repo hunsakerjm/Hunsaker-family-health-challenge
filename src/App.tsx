@@ -251,8 +251,11 @@ function AuthenticatedApp({
   }
 
   return (
-    <div className="min-h-dvh flex flex-col" style={{ background: theme.paper }}>
-      <div className="flex-1 overflow-y-auto">
+    // Fixed viewport height (h-dvh not min-h-dvh) so the column stays bounded
+    // and BottomNav stays visible. The scroll child needs min-h-0 so it can shrink
+    // below its content size and actually scroll instead of pushing content off-screen.
+    <div className="h-dvh flex flex-col" style={{ background: theme.paper }}>
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {showWeightDetail && ownUser ? (
           <WeightDetailScreen
             theme={theme}
