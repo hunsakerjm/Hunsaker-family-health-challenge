@@ -6,9 +6,9 @@ This is the orchestrator's recovery file. If session context is cleared or token
 
 ## Current state
 
-**Overall status:** Phases 0, 1, 2, and 3 COMPLETE — merged to `main`, deployed, verified in production at `https://hunsaker-family.com`. Every tab is wired (Today, Calendar, Standings, Settings). **Phase 4 (offline/PWA) and Phase 5 (launch readiness) are sequential — no parallel tracks remain.** Current state of the data: the database has **ZERO users**. The seed deliberately creates none (§5). Standings and Calendar will render empty until people are added through Settings (Phase 3C) or seeded directly via D1 on request. This is expected, not a bug.
+**Overall status:** Phases 0, 1, 2, 3, and 4 COMPLETE — merged to `main`, deployed, verified in production at `https://hunsaker-family.com`. Every tab is wired (Today, Calendar, Standings, Settings). Offline operation and PWA install working end-to-end. **Phase 5 (launch readiness) is the only remaining phase and is unblocked.** Current state of the data: the database has **1 user (Josh, blue, in both points and weight challenges)**. All Phase 4 test entries deleted post-verification per owner request.
 **Active branches:** None — all complete phases merged and deployed.
-**Last updated:** 2026-08-24 (Phase 3 merge and deploy verified)
+**Last updated:** 2026-08-24 (Phase 4 complete and deployed to production, verified on physical iPhone)
 
 ## Owner inputs
 
@@ -31,22 +31,24 @@ All four spec §0 inputs are now resolved and recorded. No further owner questio
 | **Phase 3A** Calendar + weight | Calendar month grid, pip meters, weight entry/correction, baseline, per-date weight screen | Phase 2 | `phase-3a-calendar-weight` | **DONE — merged + deployed** | Per-date pip meters, unlogged vs. zero distinction, weight glyph, weight entry and correction, baseline designation. |
 | **Phase 3B** Standings | Leaderboard, ribbon, completion radar, consistency chart, weight-% tab, month filter, person toggles | Phase 2 | `phase-3b-standings` | **DONE — merged + deployed** | Lazy-loaded route; Recharts isolated in a 96.23 kB gzip chunk, not touching Today screen. Tie handling and ribbon signature element working. |
 | **Phase 3C** Settings | People manager, identity editor, rule editor with effective dates, config editor, password change, CSV export | Phase 2 | `phase-3c-settings` | **DONE — merged + deployed** | People manager, rule editor with effective dates, config editor, password change, CSV export all deployed. No redeploy needed to add people or rules. |
-| **Phase 4** Offline / PWA | Manifest, icons, service worker, IndexedDB queue, `/api/sync/batch`, optimistic UI, safe areas, install hint, CSP/headers | Phase 2 (may start after 3A/3B/3C begin) | `phase-4-offline` | NOT STARTED | Full day in airplane mode syncs on reconnect. IndexedDB write queue. Optimistic UI with pending indicators. |
-| **Phase 5** Launch readiness | Ambient motion, month recap, D1 → R2 backup procedure, README, acceptance checklist | Phase 3 + 4 | `phase-5-launch` | NOT STARTED | Built last, removable. Scheduled backup to R2 + restore procedure. Full §15 checklist on real iPhone. |
+| **Phase 4** Offline / PWA | Manifest, icons, service worker, IndexedDB queue, `/api/sync/batch`, optimistic UI, safe areas, install hint, CSP/headers | Phase 2 (may start after 3A/3B/3C begin) | `phase-4-offline`, `phase-4a-pwa-shell`, `phase-4b-offline-sync` | **DONE — merged + deployed** | Service worker: GET-only interception, app shell precache (required/optional split), network-first `/api/**` with fallback, cache-first hashed `/assets/**`, `/api/export.csv` and `/api/auth/**` never cached. `POST /api/sync/batch`: mixed log+weight ops, sequential, reusing scoring/validation, idempotent. IndexedDB offline queue with FIFO flush on `online` and `visibilitychange`. Optimistic UI + `PendingIndicator` on Today, Calendar, WeightDetail. Manifest, maskable icons, CSP `default-src 'self'` + specific directives. Weight sheet: numeric input + steppers. Single-weigh-in people drop from weight standings (baseline = most recent = 0%). Verified: full day in airplane mode syncs correctly on reconnect, writes queued and flushed in one `/api/sync/batch` round trip. |
+| **Phase 5** Launch readiness | Ambient motion, month recap, D1 → R2 backup procedure, README, acceptance checklist | Phase 3 + 4 | `phase-5-launch` | NOT STARTED — unblocked | Built last, removable. Scheduled backup to R2 + restore procedure. Full §15 checklist on real iPhone. Owner must reset `challenge_start` from 2026-08-24 to 2026-09-01 before family launch. |
 
-## Verification snapshot — Phase 3 complete and deployed
+## Verification snapshot — Phase 4 complete and deployed
 
 **Test coverage:** 152 tests passing across 8 files (dates, server-side scoring, maxPointsForDate, and app integration suites).
 
-**Typecheck:** `npx tsc --noEmit` exits 0; `npx tsc --noEmit -p functions/tsconfig.json` exits 0.
+**Typecheck:** `npx tsc --noEmit` exits 0; `npx tsc -p functions/tsconfig.json --noEmit` exits 0. Build change (v0.8.1): root tsconfig now includes `functions/` to catch server-side type errors at compile time, not runtime.
 
-**Build:** `npm run build` exits 0.
+**Build:** `npm run build` (now `tsc -b && tsc -p functions/tsconfig.json --noEmit && vite build`) exits 0.
 
 **Main bundle:** 78.93 kB gzip (31% of the 250KB §12 budget).
 
 **Recharts:** confirmed **0 references** in the main chunk; isolated in a lazy `HabitRadar-*.js` chunk at 96.23 kB gzip.
 
 **Canvas confetti:** in its own 4.20 kB gzip chunk.
+
+**Service worker:** GET-only interception, app shell precache, network-first `/api/**`, cache-first hashed `/assets/**`. Verified: writes queued in airplane mode, flushed on reconnect in ~350ms via one `/api/sync/batch` round trip.
 
 **Production API verification:**
 - Login: 200
@@ -55,29 +57,31 @@ All four spec §0 inputs are now resolved and recorded. No further owner questio
 - `/api/rules`: 200
 - `/api/config`: 200
 - `/api/export.csv`: 200
+- `/api/sync/batch`: 200 (mixed log+weight ops, idempotent)
 - All four `/api/stats/*` (with required params): 200
 - Stats without required `period`: clear 400 message
 - Stats with `period=month` without `month` param: clear 400 message
 - Unauthenticated stats requests: correctly 401
+- `/manifest.webmanifest`: 200
+- `/sw.js`: 200
+- All icon endpoints: 200
+- CSP and three baseline security headers present
 - `hunsaker-family.pages.dev`: still 404 via host lock (correct)
 
-**Current state of the data:** The database has **ZERO users**. The seed deliberately creates none (spec §5). Standings and Calendar will render empty until people are added through Settings (Phase 3C) or seeded directly via D1 on request. This is expected, not a bug.
+**Current state of the data:** The database has **1 user (Josh, blue, in both points and weight challenges)**. Seed deliberately creates no users (spec §5); Josh was added during Phase 4 verification and remains as baseline user. Phase 4 test entries (2026-08-24) were deleted post-verification per owner request.
 
-## Next phase — Phase 4 (offline/PWA)
+## Next phase — Phase 5 (launch readiness)
 
-Phase 4 owns the offline experience and PWA infrastructure per spec §14 and §10:
-- Manifest and icons for install
-- Service worker for offline operation
-- IndexedDB write queue for outbox durability
-- `/api/sync/batch` endpoint for batched syncs on reconnect
-- Optimistic UI with pending indicators
-- Safe areas for notch/Dynamic Island devices
-- Install hint for prompt timing
-- CSP and security headers (deferred decision needed — see "Open decisions")
+Phase 5 is the final phase before family launch (2026-09-01). It owns ambient motion, month recap, backup procedure to R2, README, and full acceptance checklist per spec §14 and §15:
+- Ambient motion (parallax, scroll effects, subtle animations)
+- Month recap screen (end-of-month summary and celebration)
+- D1 → R2 backup procedure and restore process
+- README with installation and usage instructions
+- Full §15 checklist verified on physical iPhone (safe areas, notch, Dynamic Island, emoji keyboard, install flow)
 
-**Demo:** Full day logged in airplane mode syncs correctly on reconnect; pending log entries show pending state until confirmed.
+**Status:** Phase 4 complete. Phase 5 is unblocked and ready to begin.
 
-**Note:** Phase 4 is where the deferred `Content-Security-Policy` header decision must finally be made. It is currently deliberately unset due to the per-user color system. See DECISIONS.md and the open decisions list below.
+**Critical action (owner):** `challenge_start` in production config is currently 2026-08-24 (set to allow Phase 4 on-device testing). It **must be reset to 2026-09-01** before the family begins using the app. The owner has confirmed they will do this.
 
 ## The shared contract
 
@@ -115,7 +119,7 @@ One-time Cloudflare setup from spec Appendix B:
 
 - **Rate limit counts successful logins and is per-household-IP.** A correct password is refused once an IP hits 10 attempts in 15 minutes. Rate limit is per-household-IP (not per-person). Both behaviors are flagged as worth tuning before launch day. Two-line change in `functions/_lib/rateLimit.ts` if either needs adjustment.
 - **Preview deployments remain unviewable.** The host lock 404s every hostname except `hunsaker-family.com`, so branch previews cannot be opened on a phone. Workaround: merge to `main` frequently (nobody uses the app until 2026-09-01, so broken intermediate states cost nothing). Not yet decided whether to relax the host lock in the preview environment only.
-- **CSP header deferred.** `Content-Security-Policy` is deliberately not set — Phase 0's per-user color system may need inline styles. Phase 4 owns headers and must finally decide: strict CSP or none. See DECISIONS.md.
+- ~~**CSP header deferred.**~~ RESOLVED in Phase 4 — `Content-Security-Policy` applied with `default-src 'self'`, `script-src 'self'` (no unsafe-inline), `style-src 'self' 'unsafe-inline'` (283 inline style attributes carry per-user color ramps), plus full directive set. Decision: strict CSP with inline styles whitelisted via `'unsafe-inline'` for the color system.
 
 ## Log
 
@@ -171,3 +175,46 @@ spec/CLAUDE.md date error: 2027-03-08 is not a real DST transition (real one is 
 **2026-08-23 16:40** — Verified live environment: wrangler authenticated, `hunsaker-family.com` NS delegated to Cloudflare with no A/MX records. NS blocker retired; two new blockers logged (`zone (write)` scope, wrangler version).
 
 **2026-08-23 16:15** — Setup complete. All four spec §0 owner inputs resolved. DECISIONS.md entry added. BUILD_STATUS.md created. CLAUDE.md reconciled. Ready to brief Phase 0 agent.
+
+---
+
+**2026-08-24 14:30** — **Phase 4 COMPLETE, merged and deployed to production.** Two tracks (`phase-4a-pwa-shell` and `phase-4b-offline-sync`) ran in isolated worktrees with no collisions. All infrastructure delivered:
+
+**Service worker & PWA:**
+- GET-only interception; POST/PUT/DELETE pass through untouched.
+- App shell precache: required bundle (`dist/index.html`, main JS/CSS, fonts) and optional chunks.
+- Network-first for `/api/**` with cache fallback; cache-first for hashed `/assets/**`.
+- `/api/export.csv` and `/api/auth/**` never cached.
+- Web manifest, full-bleed opaque maskable icons, apple touch icon. Icons generated by pure-Python `scripts/generate-icons.py` (Pillow unusable on this machine — native `_imaging` is x86_64 on arm64 Mac).
+
+**Sync infrastructure:**
+- `POST /api/sync/batch` (functions/api/sync/batch.ts, functions/_lib/sync.ts): mixed log + weight ops, sequential, idempotent through existing upsert keys. Reuses scoring/validation/upsert helpers so points stay server-computed.
+- IndexedDB offline queue (src/lib/offline/): transport failures and 5xx queue for retry; 4xx throws so the screen rolls back.
+- FIFO flush on `online` and `visibilitychange` events.
+
+**UI:**
+- Optimistic UI + `PendingIndicator` wired into Today, Calendar, WeightDetail.
+- CSP header applied: `default-src 'self'`, `script-src 'self'` (no unsafe-inline), `style-src 'self' 'unsafe-inline'` (283 inline style attributes carry per-user color ramps), plus worker-src, img-src (data: allowed), font-src, connect-src, object-src 'none', base-uri, frame-ancestors 'none'. Replaces the deferred note from earlier; decision made during implementation.
+
+**On-device verification (2026-08-24, physical iPhone):**
+- Logged a day in airplane mode; writes queued to IndexedDB.
+- Reconnected; batch sync round-trip completed in ~350ms.
+- Confirmed in production D1: five rule entries landed within ~350ms of each other in one `/api/sync/batch` call.
+
+**Production deployment (2026-08-24):** `npx wrangler pages deploy dist --project-name hunsaker-family --branch main`. All endpoints verified: `/`, `/api/health`, `/manifest.webmanifest`, `/sw.js`, icons all 200; CSP and baseline security headers present; host lock still 404 on `pages.dev`.
+
+**Build change recorded (v0.8.1):** Root `tsconfig.json` now includes `functions/` for compilation; build command changed to `tsc -b && tsc -p functions/tsconfig.json --noEmit && vite build`. Before this, `functions/` was never typechecked — server-side type errors only surfaced at runtime. Exit-code verification: `npm run build` exits 0; `$?` checked directly (not piped through tail).
+
+**Post-Phase-4 fixes (both deployed):**
+- **v0.8.2:** Weight entry sheet was stepper-only (0.5 lb/tap). Now has direct numeric input (`inputMode="decimal"`) with steppers for fine adjustment. Matches spec §8.5 "numeric sheet" requirement.
+- **v0.8.3:** Weight percentage now requires ≥2 entries. With one entry, baseline = most recent = 0% (misleading). Applied in `src/lib/weight.ts` and `functions/_lib/stats.ts`. Single-weigh-in people drop from weight standings via existing null filter.
+
+**Database state:** Added Josh (blue, both challenges) for Phase 4 testing. All test entries (2026-08-24) deleted post-verification per owner request. Seed still creates no users (spec §5).
+
+**Decisions recorded as closed (owner decision — not outstanding work):**
+- *First-run dead end:* App gates behind `showWhoami || !activeUserId`; identity picker's empty state directs to Settings (only reachable through gate). **Owner decision: not fixing** — owner is seeded in database, empty state no longer reachable.
+- *Offline marker treatment:* Spec describes per-entry "Saved on this device" marker; shipped as single `PendingIndicator` count at top. **Owner decision: count stands.**
+
+**Action still outstanding (owner):** `challenge_start` in production config is 2026-08-24 (temporary, for Phase 4 on-device testing). **Must be reset to 2026-09-01 before family launch.** Owner confirmed they will handle this. This is the one deadline item.
+
+**Phase 5 unblocked and ready to begin.**
