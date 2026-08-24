@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* iOS Safari: disable tap highlight and respect safe area insets */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
+}
+
 /* ---------------------------------------------------------------------------
    Self-hosted fonts — spec §11.1 / Appendix B. No runtime CDN requests, so
    logging still works offline (§10). Three faces, three jobs, no overlap:

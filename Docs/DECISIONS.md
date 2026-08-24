@@ -217,6 +217,39 @@ change the wire contract in `src/types.ts`/`src/api.ts` that the 3A/3B tracks al
 
 **Status:** RESOLVED.
 
+---
+
+### 2026-08-24 — Phase 4A PWA shell: CSP directives and style-src requirements
+
+**Decision:** Content Security Policy headers added in `functions/_middleware.ts` (spec §12
+implementation). Directive set:
+
+- Base: `default-src 'self'`
+- Scripts: `script-src 'self'` (no inline)
+- Styles: `style-src 'self' 'unsafe-inline'` (inline styles required)
+- Images: `img-src 'self' data:`
+- Fonts: `font-src 'self'`
+- Connections: `connect-src 'self'`
+- Workers: `worker-src 'self'` (service worker)
+- Other: `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`
+
+**Style-src justification:** A grep of `src/` found 283 instances of React inline `style={{...}}`
+attributes used to apply per-user color ramps dynamically at runtime (e.g., `--u-color`,
+`--u-100` through `--u-500` CSS variables). This is the only way to color the app chrome
+per-person without a stylesheet bloat or a build-time color split. Since inline *styles* are
+essential, `style-src 'self' 'unsafe-inline'` is required and correct. Inline *scripts* are not
+used anywhere, so `script-src` remains `'self'` only (no `'unsafe-eval'`, no `'unsafe-inline'`).
+
+**Rationale:** CSP was deferred until the design system settled (earlier DECISIONS.md entry). It
+has now settled; inline styles are structural to the design approach, not a patch or workaround.
+
+**Spec ref:** §12 ("CSP restricted to `'self'`"), §7 (color palette assignment per person),
+§11.1 (tint-step color ramps via CSS variables).
+
+**Status:** RESOLVED.
+
+---
+
 ### 2026-08-24 — Phase 3B Standings: mockup/spec conflicts and reversible calls
 
 **Decision (1 of 5) — radar completion-rate denominator.** Uses `eligible_days` (days the rule was
