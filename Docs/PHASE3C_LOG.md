@@ -109,12 +109,37 @@ challenge-window assertion.
     Rollup can prove a discarded expression has no side effects, so it doesn't force inclusion;
     an actual conditional render does.
 
+## 2026-08-24 — Local D1 end-to-end verification, all routes confirmed working
+
+Applied all 3 migrations to a fresh local D1 (`npx wrangler d1 migrations apply health-challenge
+--local`), seeded 3 test users (one archived) + 5 log entries (including a zero-value one) + 3
+weight entries directly via `wrangler d1 execute --local`, built, and ran `wrangler pages dev
+dist` on a free port (8788 was already in use by a sibling track's dev server on the same
+machine — confirmed via `lsof` before picking 8799, no collision).
+
+Exercised every new route with real cookies from a real login:
+- `GET /api/export.csv` — full sample pasted into the final report below. Zero-value row (`sleep`,
+  value=0, points=0) present as required; archived person's history intact; weights section
+  correctly separated; `max_points_for_date` correctly derived per-date (6, then 9 after adding a
+  counter rule worth 3 more — never hardcoded).
+- `POST /api/users` — creates correctly; a duplicate active color returns 409 with a clear message.
+- `PATCH /api/users/:id` archive/unarchive — archiving with no explicit `active_to` auto-set it to
+  serverToday (`2026-08-24`, the real local clock date); unarchiving cleared it back to `null`.
+- `POST /api/rules` — new rule got `effective_from` defaulted to tomorrow relative to serverToday
+  with no explicit date; an explicit backdated `effective_from` was accepted (server never blocks
+  backdating, only defaults it — the warn-and-confirm step lives client-side per §4.4); an invalid
+  counter config (missing `max`) was rejected 400 by `isValidRuleConfig`.
+- `PATCH /api/rules/:id` — enable/disable and `sort_order` both applied correctly.
+- `GET`/`PATCH /api/config` — prize string update applied; invalid IANA timezone rejected 400;
+  password change + `sign_out_all_devices` bumped `session_version` 1→2, the OLD session cookie
+  immediately 401'd on the next request, and logging in with the NEW password worked and could
+  still hit `/api/export.csv`.
+
+No bugs found in this pass — the earlier `daysRuleWouldOpen` off-by-one was caught by the unit
+tests before this stage. Cleaned up afterward: killed the dev server, deleted the temporary
+`.dev.vars` (gitignored, was never committed), removed the seed SQL and curl scratch files from
+`/tmp`. `.wrangler/` (local D1 state) and `dist/` are both gitignored, left as-is.
+
 ## Remaining
 
-- [ ] Local D1: apply migrations, seed a small set of test users/rules/logs/weights, run
-      `wrangler pages dev`, curl `/api/export.csv` end to end, paste a real sample in the report
-- [ ] Spot-check the new API routes against local D1 (create/patch person, create/patch rule,
-      config PATCH incl. password change, archive/unarchive)
-- [ ] Final report to the orchestrator: files changed, exact route path + import line for
-      App.tsx, CSV column list + sample, mid-challenge rule-change history safety, archiving
-      effect on standings, mockup/spec conflicts, full verification output
+- [ ] Final report to the orchestrator (this is the last step)
