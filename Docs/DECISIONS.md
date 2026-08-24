@@ -217,6 +217,39 @@ change the wire contract in `src/types.ts`/`src/api.ts` that the 3A/3B tracks al
 
 **Status:** RESOLVED.
 
+---
+
+### 2026-08-24 — Phase 4A PWA shell: CSP directives and style-src requirements
+
+**Decision:** Content Security Policy headers added in `functions/_middleware.ts` (spec §12
+implementation). Directive set:
+
+- Base: `default-src 'self'`
+- Scripts: `script-src 'self'` (no inline)
+- Styles: `style-src 'self' 'unsafe-inline'` (inline styles required)
+- Images: `img-src 'self' data:`
+- Fonts: `font-src 'self'`
+- Connections: `connect-src 'self'`
+- Workers: `worker-src 'self'` (service worker)
+- Other: `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`
+
+**Style-src justification:** A grep of `src/` found 283 instances of React inline `style={{...}}`
+attributes used to apply per-user color ramps dynamically at runtime (e.g., `--u-color`,
+`--u-100` through `--u-500` CSS variables). This is the only way to color the app chrome
+per-person without a stylesheet bloat or a build-time color split. Since inline *styles* are
+essential, `style-src 'self' 'unsafe-inline'` is required and correct. Inline *scripts* are not
+used anywhere, so `script-src` remains `'self'` only (no `'unsafe-eval'`, no `'unsafe-inline'`).
+
+**Rationale:** CSP was deferred until the design system settled (earlier DECISIONS.md entry). It
+has now settled; inline styles are structural to the design approach, not a patch or workaround.
+
+**Spec ref:** §12 ("CSP restricted to `'self'`"), §7 (color palette assignment per person),
+§11.1 (tint-step color ramps via CSS variables).
+
+**Status:** RESOLVED.
+
+---
+
 ### 2026-08-24 — Phase 3B Standings: mockup/spec conflicts and reversible calls
 
 **Decision (1 of 5) — radar completion-rate denominator.** Uses `eligible_days` (days the rule was
@@ -262,3 +295,36 @@ otherwise render as the same empty-with-hairline-border segment. Added `eligible
 own rule ("a track that needs a shape change edits `types.ts` first and says so") — no other track
 reads `RibbonResponse` yet, so there is no collision risk. **Spec ref:** §5/§9 `active_from`/
 `active_to`, §8.5 #2. **Status:** RESOLVED.
+
+### 2026-08-24 — Phase 4B Offline sync: retry boundary, weight bounds duplication, no flushed celebration
+
+**Decision (1 of 3) — a 5xx from the server queues for retry, exactly like a genuine network
+failure; only a 4xx throws immediately.** The brief's wording ("a network/offline failure — not a
+4xx — enqueues") is read as drawing the line at 4xx specifically, not at "any HTTP response versus
+no response." `queuedPutLog`/`queuedPutWeight` treat any thrown non-`ApiError` (real transport
+failure) or an `ApiError` with a 500-599 code as retryable-and-queue; only a 400-499 `ApiError`
+still throws. `flushQueue`'s mirror-image rule drops a per-op 4xx result from the queue (it will
+never succeed on replay) but keeps a 5xx result queued for the next attempt. **Rationale:** a 5xx
+is transient server trouble, exactly the class of failure retrying later is meant to paper over;
+surfacing it as an immediate, unactionable error to someone mid-checkbox-tap would be worse than
+queuing it. **Spec ref:** §10. **Status:** RESOLVED — reversible if the owner wants 5xx to surface
+immediately instead.
+
+**Decision (2 of 3) — the weight sanity-clamp bounds (1/1000 lb) are duplicated as local constants
+in the new `functions/_lib/sync.ts` rather than exported from `functions/api/weights/[userId]/
+[date].ts`.** That route file is outside this track's owned-files list. **Rationale:** avoiding an
+edit to a file another track could be touching concurrently was judged worth one small duplicated
+literal pair, especially since the existing route's own comment already frames it as "a sanity
+clamp, not a medical bound" rather than a value with real business meaning that could drift.
+**Spec ref:** §9 ("validate value against rule type"). **Status:** RESOLVED — trivial to collapse
+into one shared export later if a future track touches that route anyway.
+
+**Decision (3 of 3) — a write that goes offline never celebrates, even after its queue entry later
+flushes successfully.** `celebrateIfNewTier` (spec §11.2) needs a real server-computed
+`DayLogState` to derive the points ratio from; a queued write has none yet, and `flushQueue` talks
+to `/api/sync/batch` directly rather than re-entering `Today.tsx`, so there is no later moment this
+screen's code runs again on that specific op's behalf even once the flush succeeds. **Rationale:**
+routing flush results back into a screen that may no longer be mounted is real added complexity for
+a light-gamification feature the spec itself calls secondary to logging; a rare missed celebration
+on a momentarily-offline checkbox tap is an acceptable, honestly-scoped gap. **Spec ref:** §10,
+§11.2. **Status:** RESOLVED.

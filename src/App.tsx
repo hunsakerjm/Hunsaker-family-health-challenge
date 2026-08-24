@@ -17,6 +17,7 @@ import { SettingsScreen } from './screens/Settings'
 import { StandingsScreen } from './screens/Standings'
 import { ThemeProvider, useTheme } from './components/ThemeProvider'
 import { BottomNav, type BottomNavItem } from './components/BottomNav'
+import { InstallHint } from './components/InstallHint'
 import { getBootstrap } from './api'
 import { getActiveUserId } from './lib/identity'
 import { paletteEntryFor, type ThemeSurfaces } from './theme'
@@ -276,6 +277,7 @@ function AuthenticatedApp({
           />
         )}
       </div>
+      <InstallHint theme={theme} />
       <BottomNav
         theme={theme}
         items={NAV_ITEMS}
