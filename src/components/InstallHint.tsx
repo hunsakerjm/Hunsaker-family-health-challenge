@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { FONT_BODY, SPACING, THEME_LIGHT, THEME_DARK, type ThemeSurfaces } from '../theme'
+import { FONT_BODY, SPACING, THEME_LIGHT, type ThemeSurfaces } from '../theme'
 
 const INSTALL_HINT_DISMISSED_KEY = 'health-challenge-install-hint-dismissed'
 
