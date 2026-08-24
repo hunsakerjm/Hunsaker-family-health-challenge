@@ -114,6 +114,21 @@ export function getMonthBoundaries(monthKey: string): MonthBoundaries {
   return { start, end }
 }
 
+const MONTHS_PER_YEAR = 12
+
+/** Steps a `YYYY-MM` key forward or backward by whole calendar months (e.g. -1, +1) — pure
+ * integer arithmetic on the key itself, never a `Date` instant, so there is no timezone or DST
+ * concern to begin with. Shared by any month-navigation UI (spec §8.4's calendar, §8.5's month
+ * picker) so both step months identically. */
+export function stepMonthKey(monthKey: string, deltaMonths: number): string {
+  const [yearString, monthString] = monthKey.split('-')
+  const zeroIndexedMonth = Number(monthString) - 1
+  const totalMonths = Number(yearString) * MONTHS_PER_YEAR + zeroIndexedMonth + deltaMonths
+  const year = Math.floor(totalMonths / MONTHS_PER_YEAR)
+  const month = totalMonths - year * MONTHS_PER_YEAR + 1
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`
+}
+
 // ---------------------------------------------------------------------------
 // "Today," computed server-side (spec §6)
 // ---------------------------------------------------------------------------

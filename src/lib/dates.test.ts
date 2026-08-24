@@ -24,6 +24,7 @@ import {
   getMonthKey,
   getWeekdayIndex,
   isDateEditable,
+  stepMonthKey,
   isDateInRange,
   maxPointsForDate,
   type RuleForMaxPoints,
@@ -331,5 +332,31 @@ describe('getWeekdayIndex (spec §8.4 calendar month grid)', () => {
   it('is stable across a DST fall-back date, 2026-11-01', () => {
     // 2026-11-01 is a Sunday — the UTC-anchored calculation must not shift with local DST.
     expect(getWeekdayIndex('2026-11-01')).toBe(0)
+  })
+})
+
+describe('stepMonthKey (spec §8.4 calendar / §8.5 month picker)', () => {
+  it('steps forward within a year', () => {
+    expect(stepMonthKey('2026-09', 1)).toBe('2026-10')
+  })
+
+  it('steps backward within a year', () => {
+    expect(stepMonthKey('2026-09', -1)).toBe('2026-08')
+  })
+
+  it('rolls forward across a year boundary', () => {
+    expect(stepMonthKey('2026-12', 1)).toBe('2027-01')
+  })
+
+  it('rolls backward across a year boundary', () => {
+    expect(stepMonthKey('2027-01', -1)).toBe('2026-12')
+  })
+
+  it('steps by more than one month at once', () => {
+    expect(stepMonthKey('2026-09', 6)).toBe('2027-03')
+  })
+
+  it('is a no-op with delta 0', () => {
+    expect(stepMonthKey('2026-09', 0)).toBe('2026-09')
   })
 })
