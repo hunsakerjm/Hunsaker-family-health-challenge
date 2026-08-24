@@ -129,7 +129,7 @@ function networkFirstStrategy(request, event) {
       const clone = response.clone()
       event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, clone)
+          return cache.put(request, clone)
         })
       )
     }
@@ -156,7 +156,7 @@ function cacheFirstStrategy(request, event) {
         const clone = response.clone()
         event.waitUntil(
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, clone)
+            return cache.put(request, clone)
           })
         )
       }
@@ -177,7 +177,7 @@ function navigationStrategy(request, event) {
       const clone = response.clone()
       event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, clone)
+          return cache.put(request, clone)
         })
       )
     }
