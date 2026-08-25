@@ -21,6 +21,8 @@ import { BottomNav, type BottomNavItem } from './components/BottomNav'
 import { InstallHint } from './components/InstallHint'
 import { getBootstrap } from './api'
 import { getActiveUserId } from './lib/identity'
+import { usePullToRefresh, syncOnPullToRefresh } from './lib/usePullToRefresh'
+import { PullToRefreshIndicator } from './components/PullToRefreshIndicator'
 import { paletteEntryFor, type ThemeSurfaces } from './theme'
 import type { BootstrapResponse } from './types'
 
@@ -110,8 +112,8 @@ export function App() {
   // leaves bootstrap's cached copy stale for Today/Calendar. Best-effort, same pattern as the
   // post-claim refresh in handleIdentityClaimed: never blocks Settings' own local state, which is
   // already correct on its own.
-  function handleDataChanged() {
-    getBootstrap().then(setBootstrap).catch(() => {})
+  function handleDataChanged(): Promise<void> {
+    return getBootstrap().then(setBootstrap).catch(() => {})
   }
 
   if (isDesignSystemRoute) {
@@ -172,7 +174,7 @@ interface AuthenticatedAppProps {
   onIdentityClaimed: (userId: string) => void
   onSwitchPerson: () => void
   onSignOut: () => void
-  onDataChanged: () => void
+  onDataChanged: () => Promise<void>
 }
 
 // Deep-link only in this phase: Calendar/Standings (Phase 3) own the real in-app entry point for
@@ -210,6 +212,12 @@ function AuthenticatedApp({
   // re-render, and a render-time read of the URL is invisible to React.
   const [viewedUserIdParamState, setViewedUserIdParamState] = useState(readViewedUserIdParam)
   const [showWeightDetail, setShowWeightDetail] = useState(false)
+
+  // Swipe down from the top to refetch data, flush any queued offline writes, and pick up a newly
+  // deployed version. allSettled so one failing leg never blocks the others.
+  const pullToRefresh = usePullToRefresh(async () => {
+    await Promise.allSettled([syncOnPullToRefresh(), onDataChanged()])
+  })
 
   useEffect(() => {
     if (activeTab !== 'today' && pendingTodayTarget !== null) {
@@ -278,7 +286,17 @@ function AuthenticatedApp({
     // and BottomNav stays visible. The scroll child needs min-h-0 so it can shrink
     // below its content size and actually scroll instead of pushing content off-screen.
     <div className="h-dvh flex flex-col" style={{ background: theme.paper }}>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div
+        className="flex-1 min-h-0 overflow-y-auto relative"
+        ref={pullToRefresh.containerProps.ref}
+        style={pullToRefresh.containerProps.style}
+      >
+        <PullToRefreshIndicator
+          theme={theme}
+          state={pullToRefresh.state}
+          threshold={pullToRefresh.threshold}
+        />
+        <div style={pullToRefresh.contentStyle}>
         {showWeightDetail && ownUser ? (
           <WeightDetailScreen
             theme={theme}
@@ -303,6 +321,7 @@ function AuthenticatedApp({
             onDataChanged={onDataChanged}
           />
         )}
+        </div>
       </div>
       <InstallHint theme={theme} />
       <BottomNav

@@ -574,3 +574,53 @@ gesture as the single source of truth for what "viewing someone else" looks like
 orchestrator, not this track) needs one line added:
 `onOpenDay={handleOpenDay}` on its `<StandingsScreen ... />` element.
 
+### 2026-08-24 — Pull-to-refresh: native non-passive listeners instead of JSX touch props, and folded in a service-worker update check
+
+**Decision (1 of 2) — `usePullToRefresh` (`src/lib/usePullToRefresh.ts`) attaches touch listeners
+via a callback ref and `node.addEventListener(..., { passive: false })` for `touchmove`, not via
+JSX `onTouchStart`/`onTouchMove`/`onTouchEnd` props.** React has registered `touchstart`/
+`touchmove` as passive by default at the root since React 17 (matching browser default behavior
+for scroll perf); `event.preventDefault()` called from a JSX-bound handler for those events is
+silently ignored, so it can never actually stop iOS's native rubber-band scroll. Since suppressing
+that native bounce during an active pull is required for the custom pull visuals to read cleanly
+(rather than fighting the browser's own overscroll), only an explicitly non-passive native
+listener works. `containerProps` therefore exposes only `{ ref, style }` — no `onTouch*` props to
+spread — where `style` carries `overscrollBehavior: 'contain'` per the brief, and `ref` is a
+callback ref (backed by React state, not a plain ref) so the effect that attaches/detaches
+listeners correctly re-runs if the container node is ever replaced.
+
+**Rationale:** this is a correctness fix, not a style preference — the suggested `{ onTouchStart;
+onTouchMove; onTouchEnd; ref }` shape in the brief would build and typecheck but silently fail to
+prevent the native bounce on a real iPhone, which is exactly the "physical device only" class of
+bug this repo's CLAUDE.md calls out as easy to miss from a desktop browser. The brief itself said
+to adjust the suggested shape if there's a better one, provided it stays small and typed.
+
+**Decision (2 of 2) — the refresh action also runs a best-effort service-worker update check,
+added directly inside `src/lib/usePullToRefresh.ts` as `syncOnPullToRefresh()` (exported
+alongside the hook) rather than a separate module.** Force-quit-and-reopen — the only refresh
+mechanism before this feature — does two things a bootstrap refetch alone does not: it also picks
+up a newly deployed app version, since `public/sw.js` (which already calls `skipWaiting()`/
+`clients.claim()` on install) keeps serving the old cached bundle until the page actually reloads.
+`syncOnPullToRefresh()` calls `flushQueue()` (`src/lib/offline/queue.ts`) and a new
+`checkForAppUpdate()` via `Promise.allSettled`, so neither a queue failure nor an unsupported/
+failing update check can block or fail the other half. `checkForAppUpdate()` calls
+`navigator.serviceWorker.getRegistration()` then `registration.update()`, guarded so a browser
+without `serviceWorker` support is a silent no-op. A module-scoped (registered-once, not
+per-pull) `controllerchange` listener calls `window.location.reload()` when a newer worker takes
+over — but only if `navigator.serviceWorker.controller` was already non-null at the moment the
+listener was installed, since `controllerchange` also fires the first time any worker ever takes
+control of a page that had none, and reloading then would be a pointless first-load reload.
+
+**Rationale:** requested directly by the coordinator mid-task: the owner's actual motivation for
+wanting pull-to-refresh is that force-quit/reopen is their only way to get fresh data, and a
+refresh that silently leaves them running stale JS does not solve that problem. Folding it into
+the same file (rather than a new one) keeps the "what does a pull actually do" logic in one place,
+since `App.tsx`'s wiring only needs to pass one composed `onRefresh` function.
+
+**Spec ref:** §10 (offline queue), §12 (service worker / one bootstrap request), Appendix B
+(repo layout — `src/lib/`, `public/sw.js`).
+
+**Status:** RESOLVED. `App.tsx`'s wiring (owned by the orchestrator, not this file) needs to pass
+an `onRefresh` that awaits both `syncOnPullToRefresh()` and the existing `loadSession()`/bootstrap
+reload — see this feature's handoff report for the exact composition.
+
