@@ -17,6 +17,7 @@ import { Banner } from '../components/Banner'
 import { PendingIndicator } from '../components/PendingIndicator'
 import type { PersonSummary } from '../components/person'
 import { iconForRule } from '../lib/ruleIcons'
+import { findMostRecentEntry } from '../lib/weight'
 import { queuedPutLog, queuedPutWeight } from '../lib/offline/queue'
 import { WeightEntrySheet } from './WeightDetail'
 import {
@@ -284,7 +285,14 @@ export function TodayScreen({
     getWeights(ownUserId)
       .then((entries: WeightEntry[]) => {
         const existing = entries.find((entry) => entry.log_date === date)
-        setWeightPrefillLb(existing?.weight_lb ?? null)
+        if (existing) {
+          setWeightPrefillLb(existing.weight_lb)
+          return
+        }
+        // No entry for this date yet: start from the last weight they actually recorded rather
+        // than a generic default, since day-to-day weight barely moves and the steppers only
+        // travel 0.1 lb per tap.
+        setWeightPrefillLb(findMostRecentEntry(entries)?.weight_lb ?? null)
       })
       .catch(() => {})
   }

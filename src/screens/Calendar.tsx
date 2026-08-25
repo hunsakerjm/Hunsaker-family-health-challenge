@@ -343,7 +343,7 @@ export function CalendarScreen({
         <WeightEntrySheet
           theme={theme}
           dateLabel={formatDisplayDate(weightSheetDate)}
-          initialWeightLb={ownWeightByDate.get(weightSheetDate) ?? DEFAULT_QUICK_WEIGHT_LB}
+          initialWeightLb={weightPrefillFor(weightSheetDate, ownWeightByDate)}
           color={color.hex}
           onColor={color.on}
           onSave={handleSaveWeight}
@@ -389,6 +389,26 @@ function computeMonthStats(entries: LogEntry[]): MonthStats {
 // (i.e. logging a brand new entry, not correcting one — the glyph, and therefore the sheet's
 // prefill, only ever appears for dates that already have a real value).
 const DEFAULT_QUICK_WEIGHT_LB = 150
+
+/**
+ * What the weight sheet opens on: this date's own entry when it has one, otherwise the most recent
+ * weight recorded before it. Day-to-day weight barely moves, so starting from the last real
+ * reading beats a generic default — and the steppers only travel 0.1 lb per tap. Falls back to
+ * DEFAULT_QUICK_WEIGHT_LB only when the person has never logged a weight at all.
+ */
+function weightPrefillFor(date: string, weightByDate: ReadonlyMap<string, number>): number {
+  const onThisDate = weightByDate.get(date)
+  if (onThisDate !== undefined) return onThisDate
+
+  let mostRecentDate: string | null = null
+  for (const loggedDate of weightByDate.keys()) {
+    const isBeforeThisDate = compareDates(loggedDate, date) < 0
+    const isLaterThanBest = mostRecentDate === null || compareDates(loggedDate, mostRecentDate) > 0
+    if (isBeforeThisDate && isLaterThanBest) mostRecentDate = loggedDate
+  }
+  if (mostRecentDate === null) return DEFAULT_QUICK_WEIGHT_LB
+  return weightByDate.get(mostRecentDate) ?? DEFAULT_QUICK_WEIGHT_LB
+}
 
 /** Keeps month navigation inside the challenge window — spec §6's dates are the only ones with
  * real content to show. */

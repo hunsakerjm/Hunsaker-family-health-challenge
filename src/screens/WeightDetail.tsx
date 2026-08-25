@@ -512,7 +512,9 @@ interface WeightEntrySheetProps {
   onDismiss: () => void
 }
 
-const WEIGHT_STEP_LB = 0.5
+// 0.1 lb per tap. The readout is a real numeric input now, so the steppers are for nudging a
+// prefilled value the last fraction of a pound, not for travelling any distance.
+const WEIGHT_STEP_LB = 0.1
 const WEIGHT_DECIMAL_PLACES = 1
 const MIN_WEIGHT_LB = 1
 const MAX_WEIGHT_LB = 1000
