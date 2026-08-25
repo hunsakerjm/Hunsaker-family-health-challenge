@@ -227,3 +227,41 @@ not a code or migration change:
 
 See spec §4.1 for the full list of what still requires a deploy (schema shape, auth model,
 scoring semantics) versus what Settings covers at runtime.
+
+## Releases and traceability
+
+Every released change must be answerable later: *what version is this, what commit is it, and what
+is actually running in production right now?* Three things make that work, and all three are
+required — any one alone leaves a gap.
+
+1. **Bump `package.json`'s `version` in the release commit.** `vite.config.ts` injects it as
+   `__APP_VERSION__` at build time and Settings shows it at the bottom, so the number a family
+   member reads off their phone is the number that was built. Do not hardcode a version anywhere
+   in `src/`.
+2. **Tag the commit and push the tag:**
+   ```
+   git tag -a v0.9.5 -m "v0.9.5 — short description"
+   git push origin --tags
+   ```
+3. **Deploy with the commit attached**, so Cloudflare records which code a deployment contains:
+   ```
+   npx wrangler pages deploy dist --project-name hunsaker-family --branch main \
+     --commit-hash "$(git rev-parse HEAD)" --commit-message "$(git log -1 --format=%s)"
+   ```
+
+### Answering "what's in production?"
+
+```
+npx wrangler pages deployment list --project-name hunsaker-family
+```
+The **Source** column is the commit SHA. Then `git show <sha>` for the change itself, or
+`git log v0.9.4..v0.9.5` for everything between two releases.
+
+### Known gap in the history
+
+Versions before **v0.9.5** were recorded only in commit subject lines — `package.json` sat at
+`0.1.0` from the first commit until v0.9.5, and no tags existed. The `v0.1.0`–`v0.9.4` tags were
+reconstructed after the fact from those subject lines and are accurate to the commit, but the
+`package.json` inside those older commits still reads `0.1.0`. Deployments made before v0.9.5 have
+no commit SHA recorded against them in Cloudflare and cannot be traced back to code.
+
