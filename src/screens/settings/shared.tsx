@@ -2,11 +2,12 @@
 // src/screens/settings/** per Phase 3C's file ownership rather than added to src/components/,
 // which this track may read but must not modify.
 import type { ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Card } from '../../components/Card'
 import { Sheet, SheetButton } from '../../components/Sheet'
 import { SectionTitle } from '../../components/SectionTitle'
 import {
-  FONT_BODY, RADIUS, TYPE_SCALE, type ThemeSurfaces,
+  FONT_BODY, RADIUS, SPACING, TYPE_SCALE, type ThemeSurfaces,
 } from '../../theme'
 
 export const SETTINGS_ERROR_COLOR = '#E5484D' // matches Whoami/Today's inline-error red
@@ -151,6 +152,71 @@ export function ToggleRow({
 }
 
 // ---------------------------------------------------------------------------
+// Admin disclosure — the occasional-use sections (Challenge, People, Rules) sit behind a single
+// labeled row each, collapsed by default, so the everyday parts of Settings (This device,
+// Password) are not buried under administrative controls almost nobody opens (owner request).
+// The section content passed as `children` is the existing section component, unmodified.
+// ---------------------------------------------------------------------------
+
+interface AdminDisclosureProps {
+  theme: ThemeSurfaces
+  title: string
+  subtitle: string
+  expanded: boolean
+  onToggle: () => void
+  children: ReactNode
+}
+
+export function AdminDisclosure({
+  theme, title, subtitle, expanded, onToggle, children,
+}: AdminDisclosureProps) {
+  const contentId = `admin-disclosure-${title.toLowerCase().replace(/\s+/g, '-')}`
+
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <Card theme={theme}>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          className="w-full flex items-center justify-between gap-3 text-left"
+          style={{
+            padding: SPACING.cardPadding,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: FONT_BODY,
+          }}
+        >
+          <div>
+            <div style={{ ...TYPE_SCALE.sectionTitle, color: theme.ink }}>{title}</div>
+            <div style={{ ...TYPE_SCALE.caption, color: theme.muted, marginTop: 2 }}>
+              {subtitle}
+            </div>
+          </div>
+          <ChevronDown
+            size={18}
+            color={theme.muted}
+            aria-hidden="true"
+            style={{
+              flexShrink: 0,
+              transform: expanded ? 'rotate(180deg)' : 'none',
+              transition: 'transform 160ms ease',
+            }}
+          />
+        </button>
+      </Card>
+      {expanded && (
+        <div id={contentId} style={{ marginTop: 12 }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Confirm sheet — every destructive/fairness-affecting action (archive, backdate, sign-out-all)
 // funnels through this one shape so the "confirm and state the blast radius" rule (spec §4.1)
 // looks the same everywhere.
@@ -204,6 +270,12 @@ export function ConfirmSheet({
 export function textInputStyle(theme: ThemeSurfaces) {
   return {
     width: '100%',
+    // Without border-box, `width: 100%` plus 20px of padding and 2px of border renders 22px
+    // wider than the card holding it, so every field overhangs its background. `minWidth: 0`
+    // is for iOS Safari's date input, which otherwise claims an intrinsic width of its own and
+    // ignores the container entirely.
+    boxSizing: 'border-box',
+    minWidth: 0,
     fontFamily: FONT_BODY,
     fontSize: 14,
     color: theme.ink,

@@ -1,7 +1,7 @@
-// Settings — spec §8.7. "Plain, utilitarian, one long scroll": People, Rules, Challenge, This
-// device, Password, Export. No admin role — everyone with the family password reaches every
-// section (spec §4.1). This file owns no routing; see the file header note in
-// Docs/PHASE3C_LOG.md for the exact prop contract the App.tsx orchestrator wires in.
+// Settings — spec §8.7. People, Rules, and Challenge are occasional administrative settings the
+// owner asked to move behind a disclosure each, so the everyday items (This device, Password) lead
+// the screen. This file owns no routing; see the file header note in Docs/PHASE3C_LOG.md for the
+// exact prop contract the App.tsx orchestrator wires in.
 import { useState } from 'react'
 import { PeopleSection } from './settings/PeopleSection'
 import { RulesSection } from './settings/RulesSection'
@@ -9,6 +9,7 @@ import { ChallengeSection } from './settings/ChallengeSection'
 import { DeviceSection } from './settings/DeviceSection'
 import { PasswordSection } from './settings/PasswordSection'
 import { ExportSection } from './settings/ExportSection'
+import { AdminDisclosure } from './settings/shared'
 import { SPACING, TYPE_SCALE, type ThemeSurfaces } from '../theme'
 import type { AppConfig, Rule, User } from '../types'
 
@@ -34,6 +35,11 @@ export interface SettingsScreenProps {
   onDataChanged?: () => void
 }
 
+/** Which of the three button-gated admin sections, if any, is currently open. Only one at a
+ * time — three long forms open together on a 390px phone would just recreate the wall of
+ * scroll the disclosure pattern exists to remove. */
+type AdminSectionKey = 'challenge' | 'people' | 'rules'
+
 export function SettingsScreen({
   theme, reducedMotion, config, serverToday, rules, users, ownUserId, onSwitchPerson, onSignOut,
   onDataChanged,
@@ -41,6 +47,7 @@ export function SettingsScreen({
   const [localUsers, setLocalUsers] = useState(users)
   const [localRules, setLocalRules] = useState(rules)
   const [localConfig, setLocalConfig] = useState(config)
+  const [openAdminSection, setOpenAdminSection] = useState<AdminSectionKey | null>(null)
 
   function handleUserCreated(user: User) {
     setLocalUsers((prev) => [...prev, user])
@@ -67,6 +74,10 @@ export function SettingsScreen({
     onDataChanged?.()
   }
 
+  function toggleAdminSection(section: AdminSectionKey) {
+    setOpenAdminSection((prev) => (prev === section ? null : section))
+  }
+
   const ownUser = localUsers.find((user) => user.id === ownUserId)
 
   return (
@@ -74,25 +85,6 @@ export function SettingsScreen({
       <h1 style={{ ...TYPE_SCALE.screenTitle, color: theme.ink, marginBottom: 18 }}>
         Settings
       </h1>
-
-      <PeopleSection
-        theme={theme}
-        users={localUsers}
-        serverToday={serverToday}
-        challengeStart={localConfig.challenge_start}
-        onUserCreated={handleUserCreated}
-        onUserUpdated={handleUserUpdated}
-      />
-
-      <RulesSection
-        theme={theme}
-        rules={localRules}
-        serverToday={serverToday}
-        onRuleCreated={handleRuleCreated}
-        onRuleUpdated={handleRuleUpdated}
-      />
-
-      <ChallengeSection theme={theme} config={localConfig} onConfigUpdated={handleConfigUpdated} />
 
       {ownUser && (
         <DeviceSection
@@ -106,9 +98,59 @@ export function SettingsScreen({
         />
       )}
 
+      <AdminDisclosure
+        theme={theme}
+        title="Challenge"
+        subtitle="Dates, timezone, and prize text"
+        expanded={openAdminSection === 'challenge'}
+        onToggle={() => toggleAdminSection('challenge')}
+      >
+        <ChallengeSection theme={theme} config={localConfig} onConfigUpdated={handleConfigUpdated} />
+      </AdminDisclosure>
+
+      <AdminDisclosure
+        theme={theme}
+        title="People"
+        subtitle="Add, rename, recolor, or archive family members"
+        expanded={openAdminSection === 'people'}
+        onToggle={() => toggleAdminSection('people')}
+      >
+        <PeopleSection
+          theme={theme}
+          users={localUsers}
+          serverToday={serverToday}
+          challengeStart={localConfig.challenge_start}
+          onUserCreated={handleUserCreated}
+          onUserUpdated={handleUserUpdated}
+        />
+      </AdminDisclosure>
+
+      <AdminDisclosure
+        theme={theme}
+        title="Rules"
+        subtitle="Add, edit, reorder, or retire scoring rules"
+        expanded={openAdminSection === 'rules'}
+        onToggle={() => toggleAdminSection('rules')}
+      >
+        <RulesSection
+          theme={theme}
+          rules={localRules}
+          serverToday={serverToday}
+          onRuleCreated={handleRuleCreated}
+          onRuleUpdated={handleRuleUpdated}
+        />
+      </AdminDisclosure>
+
       <PasswordSection theme={theme} />
 
       <ExportSection theme={theme} />
+
+      <p style={{
+        ...TYPE_SCALE.caption, color: theme.muted, textAlign: 'center', marginTop: 28,
+      }}
+      >
+        Version {__APP_VERSION__}
+      </p>
     </div>
   )
 }

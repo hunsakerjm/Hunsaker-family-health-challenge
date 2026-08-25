@@ -294,6 +294,10 @@ function LeaderboardSection({
   // the response object itself so switching month/all-time (a new fetch, a new object) replays it.
   const barMotion = useAmbientMotion(leaderboard.data)
 
+  // Finishing order, first at the top. The API assigns `rank` but does not promise row order,
+  // and a leaderboard that isn't in rank order isn't a leaderboard.
+  const sortedByRank = [...entries].sort((a, b) => a.rank - b.rank)
+
   return (
     <div style={{ marginTop: 18 }}>
       <SectionTitle theme={theme} kicker={kicker}>Leaderboard</SectionTitle>
@@ -301,7 +305,7 @@ function LeaderboardSection({
         {entries.length === 0 ? (
           <EmptyRow theme={theme} loading={leaderboard.loading} error={leaderboard.error} />
         ) : (
-          entries.map((entry, index) => (
+          sortedByRank.map((entry, index) => (
             <LeaderboardRow
               key={entry.user_id}
               theme={theme}

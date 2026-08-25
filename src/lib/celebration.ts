@@ -202,7 +202,11 @@ const SUBTLE_RATIO_CAP = 0.33
 // Above page content, below bottom sheets/modals. Matches the approved mockup's ConfettiLayer.
 const CANVAS_Z_INDEX = 40
 const TICKS_PER_SECOND_APPROX = 60
-const TOP_TIER_DURATION_MS = 1200 // §11.2 "cap the top tier at ~1.2s"
+// §11.2 caps the top tier at ~1.2s. The owner tuned the burst on a physical device at 90 ticks
+// (~1.5s) and chose that instead: at CONFETTI_GRAVITY = 0.5 the particles hang longer, so the
+// 1.2s cap clipped the gold burst mid-air. Deliberate owner override of the spec's number, not
+// an oversight — see Docs/DECISIONS.md.
+const TOP_TIER_DURATION_MS = 1500
 const DEFAULT_TICKS = 90 // lower tiers: a flick, not a display
 const TOP_TIER_TICKS = Math.round((TOP_TIER_DURATION_MS / 1000) * TICKS_PER_SECOND_APPROX)
 const BURST_STAGGER_MS = 130

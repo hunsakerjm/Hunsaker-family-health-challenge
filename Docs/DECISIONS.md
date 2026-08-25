@@ -481,3 +481,25 @@ same change: the icon filenames did not change, so without a byte change to the 
 browser would see no update and keep serving the old precached icons indefinitely. **Rationale:**
 owner's artwork, owner's call. **Spec ref:** §10 (manifest and icons). **Status:** RESOLVED.
 
+### 2026-08-24 — Settings restructure: disclosure pattern, accordion, and password sign-out always-on
+
+**Decision — Challenge, People, and Rules sit behind a shared `AdminDisclosure` row (label,
+subtitle, chevron) that expands in place, rather than opening in a full-screen `Sheet`.** `Sheet`
+is a bottom-sheet shell sized to its content with no internal scroll container, and People/Rules
+can render many rows plus an add form — tall enough to overflow the fixed-position scrim on a
+390px phone. An in-place expansion stays inside the page's normal scroll, so it can never get cut
+off, and it reuses `ChallengeSection`/`PeopleSection`/`RulesSection` unmodified as required. Only
+one of the three may be open at a time (opening one collapses another) so three long admin forms
+can't stack into the same wall of scroll the disclosure exists to remove.
+
+**Decision — the password-change flow's final confirmation always states that every other device
+is signed out, and the request always sends `sign_out_all_devices: true`; the old opt-in
+"Sign out every device" toggle was removed.** The owner asked for a fixed three-step flow (button →
+are-you-sure → form → final confirm) with the last step stating a concrete, true consequence. The
+previous toggle made that consequence conditional and the confirm only fired when it was checked,
+which would make a plainly-stated "this signs everyone out" line false whenever the toggle was
+left off. Removing the toggle keeps the shared-password app's one deliberate password-change path
+simple and makes the warning always accurate. `PasswordSection` otherwise keeps its own fields,
+validation, and the same `updateConfig` call — only the surrounding flow and the toggle were
+touched, not the core save logic. **Spec ref:** §3.1, §8.7. **Status:** RESOLVED.
+
