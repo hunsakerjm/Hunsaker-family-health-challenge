@@ -503,3 +503,42 @@ simple and makes the warning always accurate. `PasswordSection` otherwise keeps 
 validation, and the same `updateConfig` call — only the surrounding flow and the toggle were
 touched, not the core save logic. **Spec ref:** §3.1, §8.7. **Status:** RESOLVED.
 
+### 2026-08-24 — Weight privacy note placed in the shared entry sheet, not the detail screen
+
+**Decision:** A small, dismissible privacy note was added inside `WeightEntrySheet` only (in
+`src/screens/WeightDetail.tsx`), rendered just below the existing "No celebration fires here"
+caption — not on `WeightDetailScreen`'s page body. Dismissal persists per device under the
+`health-challenge-weight-privacy-dismissed` localStorage key, wrapped in try/catch matching
+`InstallHint.tsx`'s existing pattern, with a small `aria-label="Dismiss"` × control also matching
+that file.
+
+**Rationale:** `WeightEntrySheet` is the one surface actually reused by all three places a weight
+gets logged — `Today.tsx`'s weight row, `Calendar.tsx`'s weight-glyph tap, and this screen's own
+"Log today's weight" button all open the same sheet. Placing the note there means it is seen at
+the real moment of logging regardless of entry point, and it sits literally under the weight input
+and Save button — the actual logging UI — rather than under a button that merely opens that UI.
+Duplicating the same note onto `WeightDetailScreen`'s body was considered and rejected: that would
+show it on every visit to the history/percent view even when no logging is happening, which works
+against the "small and quiet, not a warning" requirement. The note never blocks or delays Save.
+
+The shared-password caveat is deliberately scoped to the whole log, not just weight: picking
+someone's name on another device exposes every habit they have checked off on any day, not only
+their weight entries, and the copy says so plainly rather than implying weight is the only thing
+at risk. Owner explicitly approved keeping this caveat in and stated it should not be softened.
+
+**Spec ref:** §8.5, §8.6, §9 (weight privacy — percentages only, never raw pounds, in any
+aggregate), §3 (shared family password and soft per-device identity).
+
+**Status:** RESOLVED.
+
+**Amendment (2026-08-24) — the weight note is positive-only, at the owner's direction.** An earlier
+draft closed with a caveat that the shared family password means anyone who picks your name on
+their own phone can see everything you have logged. The owner reviewed that wording and chose to
+leave the note positive, and will convey the caveat to the family directly instead. What remains in
+the banner is accurate: pounds are returned only for the requesting person's own id, no aggregate
+response carries pounds, the weight row renders only on a person's own page, and standings carry
+percentages only. **Rationale:** owner's call on tone for a note aimed at family members who raised
+the concern; the caveat is being communicated out-of-band rather than dropped. The auth model
+itself (spec §3, one shared password plus a soft per-device identity claim) is unchanged.
+**Spec ref:** §3, §8.5, §9. **Status:** RESOLVED.
+

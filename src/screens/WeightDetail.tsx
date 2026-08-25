@@ -41,6 +41,7 @@ interface WeightDetailScreenProps {
 
 const GENERIC_ERROR = 'Could not save. Check your connection and try again.'
 const DEFAULT_STARTING_WEIGHT_LB = 150
+const WEIGHT_PRIVACY_NOTE_DISMISSED_KEY = 'health-challenge-weight-privacy-dismissed'
 
 export function WeightDetailScreen({
   theme, config, serverToday, ownUser, onBack,
@@ -642,7 +643,71 @@ export function WeightEntrySheet({
       <p style={{ ...TYPE_SCALE.caption, color: theme.muted, marginTop: 10, textAlign: 'center' }}>
         No celebration fires here, in either direction.
       </p>
+
+      <WeightPrivacyNote theme={theme} />
     </Sheet>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Privacy note — appears in the sheet, the single logging surface reused by
+// Today.tsx, Calendar.tsx, and this screen's own "Log today's weight" button,
+// so it is seen at the actual moment of logging regardless of entry point.
+// ---------------------------------------------------------------------------
+
+function readWeightPrivacyNoteDismissed(): boolean {
+  try {
+    return localStorage.getItem(WEIGHT_PRIVACY_NOTE_DISMISSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function WeightPrivacyNote({ theme }: { theme: ThemeSurfaces }) {
+  const [dismissed, setDismissed] = useState(readWeightPrivacyNoteDismissed)
+
+  if (dismissed) return null
+
+  function handleDismiss() {
+    setDismissed(true)
+    try {
+      localStorage.setItem(WEIGHT_PRIVACY_NOTE_DISMISSED_KEY, 'true')
+    } catch {
+      // localStorage might be unavailable; the note will just reappear next time, which is fine
+    }
+  }
+
+  return (
+    <Card theme={theme} padded style={{ marginTop: 14 }}>
+      <div className="flex items-start gap-3">
+        <p className="flex-1" style={{ ...TYPE_SCALE.caption, color: theme.muted, margin: 0 }}>
+          <span style={{ color: theme.ink, fontWeight: 600 }}>Who sees this: </span>
+          Your weight in pounds is private &mdash; only you can see it. Nobody else&rsquo;s
+          page ever shows it. Family standings show just how your percent has changed, and
+          only once you have logged two entries.
+        </p>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Dismiss"
+          className="flex-shrink-0"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            color: theme.muted,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 20,
+            height: 20,
+          }}
+        >
+          <X size={16} strokeWidth={2.5} />
+        </button>
+      </div>
+    </Card>
   )
 }
 
