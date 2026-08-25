@@ -8,7 +8,7 @@ This is the orchestrator's recovery file. If session context is cleared or token
 
 **Overall status:** All six phases (0 through 5) COMPLETE — code merged to `main` and deployed to production at `https://hunsaker-family.com`. Every tab is wired (Today, Calendar, Standings, Settings). Offline operation, PWA install, ambient motion, and month recap all working end-to-end. **Phase 5 code is complete and deployed; spec §15 acceptance checklist partially verified on device, remainder outstanding with the owner.** Current state of the data: the database has **1 user (Josh, blue, in both points and weight challenges), 6 rules, 0 log entries, 0 weight entries**. All Phase 4 test entries deleted post-verification per owner request.
 **Active branches:** None — all complete phases merged and deployed.
-**Last updated:** 2026-08-24 (Phase 5 complete and deployed to production; §15 checklist partially verified on physical iPhone)
+**Last updated:** 2026-08-24 (post-Phase-5 refinements through v0.9.9; §15 checklist partially verified on physical iPhone)
 
 ## Owner inputs
 
@@ -234,3 +234,48 @@ spec/CLAUDE.md date error: 2027-03-08 is not a real DST transition (real one is 
 **Spec §15 acceptance checklist:** Partially verified on physical iPhone. Both DST transitions to test are `2026-11-01` (fall back) and `2027-03-14` (spring forward) — spec's `2027-03-08` is incorrect (Monday, not a transition). Full checklist outstanding with owner.
 
 **Owner decision:** `challenge_start` reset to `2026-09-01` (verified in production D1 on 2026-08-24). With `backfill_limit_days = 0` and `future_logging_days = 7`, editable date window is currently empty (min = Sept 1, max = Aug 31). Checkboxes inert until Sept 1 — correct behavior. **All six phases complete.** No Phase 6 exists — spec §14 defines exactly six.
+
+---
+
+## Post-Phase-5 refinements — v0.9.2 through v0.9.9 (2026-08-24)
+
+All six phases were already complete when these landed. Each was tagged, pushed, and deployed with
+its commit hash recorded. `Docs/DECISIONS.md` carries a dated entry for every one.
+
+| Version | Change |
+|---|---|
+| v0.9.2 | Bottom nav stayed visible while scrolling — the shell used `min-h-dvh` so the page itself scrolled and carried the nav off-screen; now `h-dvh` with `min-h-0` on the scroll child. |
+| v0.9.3 | **Confetti was silently dead in production.** Phase 4's CSP (`worker-src 'self'`) blocked canvas-confetti's blob-URL worker, with no console error. Fixed with `useWorker: false` rather than allowing `blob:` workers, which on iOS Safari risks needing `script-src blob:`. |
+| v0.9.4 | Confetti launch retuned (owner-tuned on device) after the mockup's pixels-per-frame velocities were found to have been passed into canvas-confetti's `startVelocity`, a ~10x under-scale. Gravity added at 0.5. App icons replaced with owner artwork; `scripts/generate-icons.sh` (sips) replaced the Pillow generator. SW `CACHE_VERSION` bumped to v2 so unchanged icon filenames were actually refetched. |
+| v0.9.5 | Settings restructured — This device first, Challenge/People/Rules behind disclosures, three-step password flow, version footer. Leaderboard sorted by rank. `box-sizing: border-box` fixed every Settings field overhanging its card. Release traceability established (see README). |
+| v0.9.6 | Dismissible weight privacy note in the weight entry sheet. |
+| v0.9.7 | Leaderboard rows open that person's Today screen, reusing the Calendar's `onOpenDay` path and its read-only treatment. |
+| v0.9.8 | The Today nav item always returns to your own day, including when already on Today viewing someone else. |
+| v0.9.9 | Pull-to-refresh: refetches bootstrap, flushes the offline queue, and checks for a newly deployed version, reloading when a new service worker takes control. |
+
+### Release traceability — established at v0.9.5
+
+Every release now bumps `package.json`, is tagged `vX.Y.Z`, and is deployed with `--commit-hash`,
+so Settings' version footer, the git tag, and the Cloudflare deployment all agree. Tags `v0.1.0`
+through `v0.9.4` were reconstructed from commit subject lines and are accurate to the commit, but
+`package.json` inside those older commits still reads `0.1.0`, and deployments made before v0.9.5
+have no commit recorded against them. Full procedure in `README.md`.
+
+### Production state (verified 2026-08-24)
+
+**8 users, 15 log entries, 2 weight entries.** The family has been added.
+
+> **OUTSTANDING — owner action required.** `challenge_start` is currently **`2026-08-23`**, moved
+> back to enable on-device confetti testing and not yet restored. It must return to **`2026-09-01`**
+> before the challenge begins, or it starts nine days early and August entries count toward
+> standings. The 15 existing log entries are test data from that window and should be reviewed or
+> cleared at the same time. Change it in Settings → Challenge, or:
+> `npx wrangler d1 execute health-challenge --remote --command "UPDATE app_config SET value='2026-09-01' WHERE key='challenge_start';"`
+
+### Still outstanding
+
+- Finish the spec §15 acceptance checklist on a physical iPhone (partially done). Both DST
+  transitions to test are `2026-11-01` and `2027-03-14` — the spec's `2027-03-08` is a Monday and
+  is wrong.
+- Distribute the URL and shared password to the family.
+
