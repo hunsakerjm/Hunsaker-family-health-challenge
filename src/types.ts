@@ -248,12 +248,18 @@ export interface RibbonResponse {
 
 // Spec §9: "percentages only — pounds never appear in this response." No weight_lb field exists
 // anywhere on this type, by design, so a leak here is a type error, not just a code review miss.
+//
+// Owner override of spec §13#3 (see Docs/DECISIONS.md): negative = lost weight, positive =
+// gained; the opposite of the spec's original convention, because "-2.1%" reads more naturally as
+// weight going down than a positive number claiming to be a loss. Renamed from `percent_lost` to
+// `percent_change` when the sign flipped, since "lost" holding a negative-for-loss value is an
+// actively misleading name.
 export interface WeightStatsEntry {
   user_id: string
   display_name: string
   color_key: string
   emoji: string | null
-  percent_lost: number // positive = lost weight, negative = gained; ties/sort handled client-side
+  percent_change: number // negative = lost weight, positive = gained; sort/rank handled server-side
 }
 
 export interface WeightStatsResponse {

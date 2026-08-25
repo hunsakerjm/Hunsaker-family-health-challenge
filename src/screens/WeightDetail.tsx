@@ -13,7 +13,7 @@ import { Sheet } from '../components/Sheet'
 import { PendingIndicator } from '../components/PendingIndicator'
 import { queuedPutWeight } from '../lib/offline/queue'
 import {
-  computePercentLost,
+  computePercentChange,
   findMostRecentEntry,
   resolveBaselineEntry,
   sortEntriesByDateAscending,
@@ -69,7 +69,7 @@ export function WeightDetailScreen({
   }, [ownUser.id])
 
   const sorted = useMemo(() => sortEntriesByDateAscending(entries ?? []), [entries])
-  const percentLost = useMemo(() => computePercentLost(sorted), [sorted])
+  const percentChange = useMemo(() => computePercentChange(sorted), [sorted])
   const baseline = useMemo(() => resolveBaselineEntry(sorted), [sorted])
   const sheetEntry = sheetDate ? sorted.find((entry) => entry.log_date === sheetDate) ?? null : null
   const defaultNewWeight = findMostRecentEntry(sorted)?.weight_lb ?? DEFAULT_STARTING_WEIGHT_LB
@@ -134,7 +134,7 @@ export function WeightDetailScreen({
         {actionError && <ErrorNotice message={actionError} />}
         <PendingIndicator theme={theme} />
 
-        <PercentHero theme={theme} color={color.hex} percentLost={percentLost} entryCount={sorted.length} />
+        <PercentHero theme={theme} color={color.hex} percentChange={percentChange} entryCount={sorted.length} />
 
         {sorted.length >= 2 && (
           <div style={{ marginTop: 16 }}>
@@ -267,18 +267,21 @@ function WeightHeader({
 // ---------------------------------------------------------------------------
 
 function PercentHero({
-  theme, color, percentLost, entryCount,
+  theme, color, percentChange, entryCount,
 }: {
   theme: ThemeSurfaces
   color: string
-  percentLost: number | null
+  percentChange: number | null
   entryCount: number
 }) {
-  const hasData = percentLost !== null
-  const isLoss = hasData && percentLost >= 0
+  const hasData = percentChange !== null
+  // Owner override of spec §13#3 (see Docs/DECISIONS.md): negative = lost weight, positive =
+  // gained. Zero (or a negative result) reads as a loss for icon purposes, matching the prior
+  // convention's treatment of exactly-zero as "loss" rather than "gain."
+  const isLoss = hasData && percentChange <= 0
   const Icon = isLoss ? TrendingDown : TrendingUp
-  const displayValue = hasData ? `${percentLost.toFixed(1)}%` : '—'
-  // Zero entries and exactly one entry both resolve to `null` (see computePercentLost), but they
+  const displayValue = hasData ? `${percentChange.toFixed(1)}%` : '—'
+  // Zero entries and exactly one entry both resolve to `null` (see computePercentChange), but they
   // are different situations for the person reading this: one has nothing logged yet, the other
   // is one weigh-in away from seeing real progress. Same placeholder treatment, different words.
   const noDataMessage = entryCount === 0

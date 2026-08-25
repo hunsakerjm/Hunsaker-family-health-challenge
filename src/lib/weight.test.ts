@@ -1,11 +1,12 @@
-// Spec §8.6: baseline resolution and percent-lost math. Both are pure and both fail silently if
+// Spec §8.6: baseline resolution and percent-change math. Both are pure and both fail silently if
 // wrong (a mis-picked baseline or an inverted sign quietly misreports someone's progress), so they
 // earn coverage the same way dates.ts/scoring.ts/maxPointsForDate do (CLAUDE.md "What earns
-// automated tests").
+// automated tests"). Owner override of spec §13#3 (see Docs/DECISIONS.md): negative = lost
+// weight, positive = gained weight — the opposite of the spec's original convention.
 import { describe, expect, it } from 'vitest'
 import type { WeightEntry } from '../types'
 import {
-  computePercentLost,
+  computePercentChange,
   findMostRecentEntry,
   resolveBaselineEntry,
   sortEntriesByDateAscending,
@@ -81,9 +82,9 @@ describe('findMostRecentEntry', () => {
   })
 })
 
-describe('computePercentLost', () => {
+describe('computePercentChange', () => {
   it('is null with no entries at all', () => {
-    expect(computePercentLost([])).toBeNull()
+    expect(computePercentChange([])).toBeNull()
   })
 
   it('is null with a single entry, even though the math would resolve to 0%', () => {
@@ -91,7 +92,7 @@ describe('computePercentLost', () => {
     // as "no progress made" when the truth is "not enough data yet." One entry must report null,
     // same as zero entries, until a second one exists to compare against.
     const entries = [makeEntry({ log_date: '2026-09-01', weight_lb: 190 })]
-    expect(computePercentLost(entries)).toBeNull()
+    expect(computePercentChange(entries)).toBeNull()
   })
 
   it('computes normally once a second entry exists', () => {
@@ -99,23 +100,23 @@ describe('computePercentLost', () => {
       makeEntry({ log_date: '2026-09-01', weight_lb: 200 }),
       makeEntry({ log_date: '2026-09-30', weight_lb: 190 }),
     ]
-    expect(computePercentLost(entries)).toBeCloseTo(5, 5)
+    expect(computePercentChange(entries)).toBeCloseTo(-5, 5)
   })
 
-  it('is positive when weight decreased from baseline', () => {
+  it('is negative when weight decreased from baseline', () => {
     const entries = [
       makeEntry({ log_date: '2026-09-01', weight_lb: 200 }),
       makeEntry({ log_date: '2026-09-30', weight_lb: 190 }),
     ]
-    expect(computePercentLost(entries)).toBeCloseTo(5, 5)
+    expect(computePercentChange(entries)).toBeCloseTo(-5, 5)
   })
 
-  it('is negative when weight increased from baseline', () => {
+  it('is positive when weight increased from baseline', () => {
     const entries = [
       makeEntry({ log_date: '2026-09-01', weight_lb: 180 }),
       makeEntry({ log_date: '2026-09-30', weight_lb: 189 }),
     ]
-    expect(computePercentLost(entries)).toBeCloseTo(-5, 5)
+    expect(computePercentChange(entries)).toBeCloseTo(5, 5)
   })
 
   it('uses the explicit baseline, not the earliest entry, when one is flagged', () => {
@@ -124,8 +125,8 @@ describe('computePercentLost', () => {
       makeEntry({ log_date: '2026-09-14', weight_lb: 184, is_baseline: true }),
       makeEntry({ log_date: '2026-09-28', weight_lb: 180 }),
     ]
-    // (184 - 180) / 184 * 100
-    expect(computePercentLost(entries)).toBeCloseTo(2.1739, 3)
+    // (180 - 184) / 184 * 100
+    expect(computePercentChange(entries)).toBeCloseTo(-2.1739, 3)
   })
 
   it('guards against a zero-weight baseline rather than dividing by zero', () => {
@@ -133,6 +134,6 @@ describe('computePercentLost', () => {
       makeEntry({ log_date: '2026-09-01', weight_lb: 0, is_baseline: true }),
       makeEntry({ log_date: '2026-09-14', weight_lb: 180 }),
     ]
-    expect(computePercentLost(entries)).toBeNull()
+    expect(computePercentChange(entries)).toBeNull()
   })
 })

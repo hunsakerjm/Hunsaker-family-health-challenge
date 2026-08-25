@@ -624,3 +624,37 @@ since `App.tsx`'s wiring only needs to pass one composed `onRefresh` function.
 an `onRefresh` that awaits both `syncOnPullToRefresh()` and the existing `loadSession()`/bootstrap
 reload — see this feature's handoff report for the exact composition.
 
+### 2026-08-25 — Owner override: weight percent sign flipped, `percent_lost` renamed to `percent_change`
+
+**Decision:** The owner has knowingly overridden spec §13#3, which states a gain shows as a
+negative number. The sign of the weight-change percentage is now inverted: **losing weight
+displays as negative, gaining as positive** — the opposite of the original spec convention. The
+field carrying this value was renamed from `percent_lost` to `percent_change` everywhere it
+appears, since a field called "lost" holding a negative number for a loss is a misleading name
+waiting to trip someone up. Renamed: `WeightStatsEntry.percent_lost` → `percent_change`
+(`src/types.ts`, the pinned API contract — changed with this note as the loud flag);
+`computeWeightPercentLost` → `computeWeightPercentChange` (`functions/_lib/stats.ts`);
+`computePercentLost` → `computePercentChange` (`src/lib/weight.ts`); all consumers in
+`src/screens/Standings.tsx` and `src/screens/WeightDetail.tsx`; all tests and the header comment
+in `src/lib/weight.test.ts`. The formula itself flipped from `(baseline − latest) / baseline * 100`
+to `(latest − baseline) / baseline * 100` in both the client (`src/lib/weight.ts`) and server
+(`functions/_lib/stats.ts`) implementations, which must never diverge from each other.
+
+Everywhere "best result" was keyed off the old sign, the comparison was inverted to match:
+`loadWeightStatsEntries`'s sort is now ascending on `percent_change` (most negative — the biggest
+loss — sorts first, so rank 1 is still the biggest loser); `Standings.tsx`'s `isGain` check is now
+`percent_change > 0` (was `< 0`); `WeightDetail.tsx`'s icon selection (`TrendingDown` for a loss)
+is now `percentChange <= 0` (was `>= 0`), so the down arrow still means weight going down. The
+two-entry minimum for a real percentage (versus a misleading 0%, `Docs/DECISIONS.md`'s "Weight
+percent-lost requires at least two entries" entry above) is unchanged by this override.
+
+**Rationale:** the owner's stated reasoning is that "percent weight loss" technically justifies
+loss-is-positive per spec §13#3, but "−2.1%" reads far more naturally as weight trending down than
+a positive number that has to be mentally reinterpreted as good news. This is a deliberate,
+informed override of a specific spec line, not a bug fix or an ambiguity resolution — the owner
+made the call knowingly.
+
+**Spec ref:** §13#3 (overridden), §8.5 #5, §8.6, §9.
+
+**Status:** RESOLVED.
+

@@ -35,19 +35,21 @@ export function findMostRecentEntry(entries: readonly WeightEntry[]): WeightEntr
 }
 
 /**
- * Spec §8.6: "Percentage lost = (baseline − most recent) ÷ baseline × 100." Positive means lost
- * weight, negative means gained (spec §8.5 sorts a negative result to the bottom of the weight
- * standings — this function only computes the number, callers decide how to display it). Null
- * when there's nothing to compute from, including the divide-by-zero guard on a corrupt baseline.
+ * Owner override of spec §13#3 (see Docs/DECISIONS.md): "Percentage change = (most recent −
+ * baseline) ÷ baseline × 100." Negative means lost weight, positive means gained — "−2.1%" reads
+ * more naturally as weight going down than a bare "2.1%" claiming to be a loss. Callers that need
+ * to rank or highlight "best result" must sort/compare toward the most negative value, not the
+ * most positive one. Null when there's nothing to compute from, including the divide-by-zero
+ * guard on a corrupt baseline.
  *
  * Also null with exactly one entry: with only one weigh-in, baseline and "most recent" resolve to
  * the same row, so the only possible result is a misleading 0% — reading as "no progress" when
  * the truth is "not enough data yet." A real percentage needs at least two entries to compare.
  */
-export function computePercentLost(entries: readonly WeightEntry[]): number | null {
+export function computePercentChange(entries: readonly WeightEntry[]): number | null {
   if (entries.length < 2) return null
   const baseline = resolveBaselineEntry(entries)
   const mostRecent = findMostRecentEntry(entries)
   if (!baseline || !mostRecent || baseline.weight_lb === 0) return null
-  return ((baseline.weight_lb - mostRecent.weight_lb) / baseline.weight_lb) * 100
+  return ((mostRecent.weight_lb - baseline.weight_lb) / baseline.weight_lb) * 100
 }

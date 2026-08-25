@@ -673,7 +673,7 @@ function WeightSection({ theme, config, weight }: { theme: ThemeSurfaces; config
 
   return (
     <div style={{ marginTop: 18 }}>
-      <SectionTitle theme={theme} kicker={config.prize_final}>Percent lost</SectionTitle>
+      <SectionTitle theme={theme} kicker={config.prize_final}>Weight change</SectionTitle>
       <Card theme={theme}>
         {entries.length === 0 ? (
           <EmptyRow theme={theme} loading={weight.loading} error={weight.error} />
@@ -702,9 +702,10 @@ function WeightRow({
   isFirst: boolean
 }) {
   const color = paletteEntryFor(entry.color_key).hex
-  // Spec §13#3: a gain shows as a negative number (toFixed already prints the "-") and sorts
-  // last — no separate treatment beyond de-emphasizing the color, which the mockup also does.
-  const isGain = entry.percent_lost < 0
+  // Owner override of spec §13#3 (see Docs/DECISIONS.md): a gain now shows as a positive number
+  // and a loss as negative (toFixed already prints the "-"). Gains still sort last and get the
+  // same de-emphasized treatment as before, just keyed off the flipped sign.
+  const isGain = entry.percent_change > 0
 
   return (
     <div
@@ -722,7 +723,7 @@ function WeightRow({
           color: isGain ? theme.muted : color,
         }}
       >
-        {entry.percent_lost.toFixed(1)}%
+        {entry.percent_change.toFixed(1)}%
       </span>
     </div>
   )

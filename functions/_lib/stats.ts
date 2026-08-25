@@ -261,9 +261,13 @@ function isWithinRange(date: string, range: DateRange): boolean {
 
 // ---------------------------------------------------------------------------
 // Weight percentages (spec §8.5 #5, §8.6, §9, §13#9) — the hard privacy rule. See
-// `computeWeightPercentLost` below: it is the only function anywhere in this codebase permitted to
-// read `weight_entries.weight_lb` for an aggregate view, and its return type makes leaking a
+// `computeWeightPercentChange` below: it is the only function anywhere in this codebase permitted
+// to read `weight_entries.weight_lb` for an aggregate view, and its return type makes leaking a
 // pound value structurally impossible for any caller, not just a matter of this file's discipline.
+//
+// Owner override of spec §13#3 (see Docs/DECISIONS.md): negative = lost weight, positive = gained
+// — the opposite of the spec's original "positive = lost" convention. Ranking "who has lost the
+// most" therefore sorts toward the most negative value, not the most positive one.
 // ---------------------------------------------------------------------------
 
 interface WeightExtremesRow {
@@ -274,15 +278,15 @@ interface WeightExtremesRow {
 }
 
 /**
- * Returns a percent-lost figure only — never an object that could carry a pound value through to
- * a caller by accident. `null` means the person has no weight entries yet, or has only one — with
- * a single entry, baseline and "most recent" are the same row, so the only possible result is a
- * misleading 0% (reads as "no progress" when the truth is "not enough data yet"); this mirrors the
- * same rule in `src/lib/weight.ts`'s `computePercentLost`, and the two must never diverge. Baseline
- * is the `is_baseline` row if one is set, else the earliest entry (spec §8.6). The entry count is
- * folded into this one query rather than a second round trip (spec §9: aggregate in SQL).
+ * Returns a percent-change figure only — never an object that could carry a pound value through
+ * to a caller by accident. `null` means the person has no weight entries yet, or has only one —
+ * with a single entry, baseline and "most recent" are the same row, so the only possible result is
+ * a misleading 0% (reads as "no progress" when the truth is "not enough data yet"); this mirrors
+ * the same rule in `src/lib/weight.ts`'s `computePercentChange`, and the two must never diverge.
+ * Baseline is the `is_baseline` row if one is set, else the earliest entry (spec §8.6). The entry
+ * count is folded into this one query rather than a second round trip (spec §9: aggregate in SQL).
  */
-export async function computeWeightPercentLost(db: D1Database, userId: string): Promise<number | null> {
+export async function computeWeightPercentChange(db: D1Database, userId: string): Promise<number | null> {
   const row = await db
     .prepare(
       `SELECT
@@ -297,7 +301,7 @@ export async function computeWeightPercentLost(db: D1Database, userId: string): 
   if (!row || row.latest === null || row.entry_count < 2) return null
   const baseline = row.baseline_flagged ?? row.earliest
   if (baseline === null || baseline === 0) return null
-  return ((baseline - row.latest) / baseline) * 100
+  return ((row.latest - baseline) / baseline) * 100
 }
 
 /** Spec §8.5 #5: "Only people with in_weight_challenge = 1 appear" — a live roster view, so
@@ -310,15 +314,17 @@ export async function loadWeightStatsEntries(
   const candidates = users.filter((user) => user.in_weight_challenge && user.status === 'active')
   const entries: WeightStatsEntry[] = []
   for (const user of candidates) {
-    const percentLost = await computeWeightPercentLost(db, user.id)
-    if (percentLost === null) continue
+    const percentChange = await computeWeightPercentChange(db, user.id)
+    if (percentChange === null) continue
     entries.push({
       user_id: user.id,
       display_name: user.display_name,
       color_key: user.color_key,
       emoji: user.emoji,
-      percent_lost: percentLost,
+      percent_change: percentChange,
     })
   }
-  return entries.sort((a, b) => b.percent_lost - a.percent_lost)
+  // Owner override of spec §13#3: negative = lost weight, so the biggest loser (most negative
+  // percent_change) must sort first — ascending, not descending.
+  return entries.sort((a, b) => a.percent_change - b.percent_change)
 }
