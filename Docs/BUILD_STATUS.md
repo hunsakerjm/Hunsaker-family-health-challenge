@@ -270,10 +270,9 @@ have no commit recorded against them. Full procedure in `README.md`.
 > are legitimate baselines. `challenge_start` stays at `2026-08-23`; do not "restore" it to
 > `2026-09-01`.
 >
-> One consequence worth a decision: the monthly prize is per calendar month, so **August is a
-> nine-day month** (Aug 23–31). Either fold it into September's prize or accept it as a short bonus
-> month — the owner's call, easier settled now than explained in October. Nothing in the code needs
-> to change either way; `prize_monthly` is runtime config.
+> August is a nine-day calendar month (Aug 23–31), which the owner is handling socially. Nothing in
+> the app is binding here: `prize_monthly` and `prize_final` are display strings, and prize
+> automation was cut on purpose (spec §0). No code change, no open decision.
 
 ### Still outstanding
 
