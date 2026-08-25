@@ -178,8 +178,10 @@ interface AuthenticatedAppProps {
 // Deep-link only in this phase: Calendar/Standings (Phase 3) own the real in-app entry point for
 // viewing someone else's page (spec §3.4). `/?u=<userId>` lets that treatment be exercised and
 // tested now without adding chrome the mockup doesn't call for on the Today screen itself.
+const VIEWED_USER_PARAM = 'u'
+
 function readViewedUserIdParam(): string | null {
-  return new URLSearchParams(window.location.search).get('u')
+  return new URLSearchParams(window.location.search).get(VIEWED_USER_PARAM)
 }
 
 // Set by Calendar's onOpenDay (spec §8.4: "Tapping a day opens that day's log, respecting §3.4")
@@ -204,6 +206,9 @@ function AuthenticatedApp({
 }: AuthenticatedAppProps) {
   const { theme, reducedMotion } = useTheme()
   const [pendingTodayTarget, setPendingTodayTarget] = useState<PendingTodayTarget | null>(null)
+  // Kept in state, not read from window.location during render: clearing the deep link has to
+  // re-render, and a render-time read of the URL is invisible to React.
+  const [viewedUserIdParamState, setViewedUserIdParamState] = useState(readViewedUserIdParam)
   const [showWeightDetail, setShowWeightDetail] = useState(false)
 
   useEffect(() => {
@@ -224,7 +229,7 @@ function AuthenticatedApp({
 
   const ownUser = bootstrap.users.find((user) => user.id === activeUserId)
   const ownColor = paletteEntryFor(ownUser?.color_key ?? 'slate').hex
-  const viewedUserIdParam = readViewedUserIdParam()
+  const viewedUserIdParam = viewedUserIdParamState
   const isViewedUserValid = viewedUserIdParam !== null
     && bootstrap.users.some((user) => user.id === viewedUserIdParam)
   const urlViewedUserId = isViewedUserValid ? (viewedUserIdParam as string) : activeUserId
@@ -232,7 +237,25 @@ function AuthenticatedApp({
 
   function handleSelectTab(key: string) {
     if (key === 'today' || key === 'calendar' || key === 'standings' || key === 'device') {
+      // Tapping Today always lands on your OWN page for today, including when you are already on
+      // the Today tab looking at someone else's day (reached from the leaderboard or the
+      // calendar). The effect above only fires when the tab actually changes, so on its own it
+      // never clears a target you are currently looking at.
+      if (key === 'today') {
+        returnToOwnToday()
+      }
       onSelectTab(key)
+    }
+  }
+
+  /** Drops both routes into someone else's day: the one-shot target and the `?u=` deep link. */
+  function returnToOwnToday() {
+    setPendingTodayTarget(null)
+    setViewedUserIdParamState(null)
+    const url = new URL(window.location.href)
+    if (url.searchParams.has(VIEWED_USER_PARAM)) {
+      url.searchParams.delete(VIEWED_USER_PARAM)
+      window.history.replaceState(null, '', url.toString())
     }
   }
 
