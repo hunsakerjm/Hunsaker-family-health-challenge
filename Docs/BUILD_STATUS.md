@@ -265,12 +265,24 @@ have no commit recorded against them. Full procedure in `README.md`.
 
 **8 users, 15 log entries, 2 weight entries.** The family has been added.
 
-> **OUTSTANDING — owner action required.** `challenge_start` is currently **`2026-08-23`**, moved
-> back to enable on-device confetti testing and not yet restored. It must return to **`2026-09-01`**
-> before the challenge begins, or it starts nine days early and August entries count toward
-> standings. The 15 existing log entries are test data from that window and should be reviewed or
-> cleared at the same time. Change it in Settings → Challenge, or:
-> `npx wrangler d1 execute health-challenge --remote --command "UPDATE app_config SET value='2026-09-01' WHERE key='challenge_start';"`
+> **August is a deliberate test window, not drift.** `challenge_start` is set to **`2026-08-23`**
+> on purpose: the owner is using the rest of August as a live shakedown to confirm everything works
+> with real family data before the real challenge opens on **2026-09-01**. Set it back to
+> `2026-09-01` before that date (Settings → Challenge, or
+> `npx wrangler d1 execute health-challenge --remote --command "UPDATE app_config SET value='2026-09-01' WHERE key='challenge_start';"`).
+>
+> **Log entries need no cleanup.** Every aggregate resolves "all time" to the challenge range
+> (`functions/api/stats/leaderboard.ts:28`) and filters `log_date >= start AND log_date <= end`, so
+> August entries fall out of standings on their own once the date moves. They remain in the
+> database and in the CSV export as a record of the test.
+>
+> **Weight entries DO need cleanup — this one is silent.** `computeWeightPercentLost` in
+> `functions/_lib/stats.ts` queries `FROM weight_entries WHERE user_id = ?` with **no date bounds**,
+> and the baseline defaults to a person's earliest entry. An August test weigh-in therefore becomes
+> that person's baseline for the whole challenge, and every percentage is measured from a number
+> entered during testing. Either delete the August weight entries before 2026-09-01, or have each
+> person use "Set as starting weight" on their real September weigh-in. Deleting is safer since it
+> does not rely on anyone remembering.
 
 ### Still outstanding
 
