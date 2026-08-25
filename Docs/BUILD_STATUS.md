@@ -265,24 +265,15 @@ have no commit recorded against them. Full procedure in `README.md`.
 
 **8 users, 15 log entries, 2 weight entries.** The family has been added.
 
-> **August is a deliberate test window, not drift.** `challenge_start` is set to **`2026-08-23`**
-> on purpose: the owner is using the rest of August as a live shakedown to confirm everything works
-> with real family data before the real challenge opens on **2026-09-01**. Set it back to
-> `2026-09-01` before that date (Settings → Challenge, or
-> `npx wrangler d1 execute health-challenge --remote --command "UPDATE app_config SET value='2026-09-01' WHERE key='challenge_start';"`).
+> **The challenge started `2026-08-23` — that is the real start, as a soft launch.** It is not a
+> test window and there is nothing to reset or clean up: August entries count, and August weigh-ins
+> are legitimate baselines. `challenge_start` stays at `2026-08-23`; do not "restore" it to
+> `2026-09-01`.
 >
-> **Log entries need no cleanup.** Every aggregate resolves "all time" to the challenge range
-> (`functions/api/stats/leaderboard.ts:28`) and filters `log_date >= start AND log_date <= end`, so
-> August entries fall out of standings on their own once the date moves. They remain in the
-> database and in the CSV export as a record of the test.
->
-> **Weight entries DO need cleanup — this one is silent.** `computeWeightPercentLost` in
-> `functions/_lib/stats.ts` queries `FROM weight_entries WHERE user_id = ?` with **no date bounds**,
-> and the baseline defaults to a person's earliest entry. An August test weigh-in therefore becomes
-> that person's baseline for the whole challenge, and every percentage is measured from a number
-> entered during testing. Either delete the August weight entries before 2026-09-01, or have each
-> person use "Set as starting weight" on their real September weigh-in. Deleting is safer since it
-> does not rely on anyone remembering.
+> One consequence worth a decision: the monthly prize is per calendar month, so **August is a
+> nine-day month** (Aug 23–31). Either fold it into September's prize or accept it as a short bonus
+> month — the owner's call, easier settled now than explained in October. Nothing in the code needs
+> to change either way; `prize_monthly` is runtime config.
 
 ### Still outstanding
 
