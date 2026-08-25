@@ -375,6 +375,7 @@ function TabContent({
         rules={bootstrap.rules}
         users={bootstrap.users}
         ownUserId={activeUserId}
+        onOpenDay={onOpenDay}
       />
     )
   }

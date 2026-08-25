@@ -542,3 +542,35 @@ the concern; the caveat is being communicated out-of-band rather than dropped. T
 itself (spec §3, one shared password plus a soft per-device identity claim) is unchanged.
 **Spec ref:** §3, §8.5, §9. **Status:** RESOLVED.
 
+### 2026-08-24 — Leaderboard rows open the tapped person's Today screen via the existing `onOpenDay` path
+
+**Decision:** `StandingsScreenProps` gained `onOpenDay: (date: string, userId: string) => void`,
+matching `Calendar.tsx`'s existing prop of the same name and signature exactly. Each leaderboard
+row in `LeaderboardRow` (in `src/screens/Standings.tsx`) is now a real `<button>` spanning the
+full row — not a small hit area — with `aria-label="Open {display_name}'s day"` and
+`onClick={() => onOpenDay(serverToday, entry.user_id)}`. No new navigation path was built: this
+reuses the same `handleOpenDay` plumbing in `App.tsx` that Calendar already drives, so Today.tsx's
+existing own-vs-other read-only treatment (spec §8.3) applies unchanged, including for a tap on
+the viewer's own row, which opens their own fully-editable Today screen with no special-casing.
+A visible pressed state was added via `onPointerDown`/`onPointerUp`/`onPointerLeave`/
+`onPointerCancel` toggling a local boolean, tinting the row with the entry's own claimed color at
+`TINT_STEP_CHECKED_ROW` (0.10) — the same tint step and mechanism `PersonSwitcherRow` in
+`Calendar.tsx` already uses for its selected state, chosen over CSS `:hover`/`:active` pseudo-
+classes because no existing tappable row in this app uses them; every other row's tap feedback is
+already a boolean-driven background tint, and iOS Safari's tap-highlight is disabled globally in
+`index.css`, so a hover-only affordance would give zero feedback on the primary device. Only the
+leaderboard rows were made tappable; the weight tab, consistency rows, ribbon, and radar are
+unchanged per the owner's explicit scope (nothing there was asked for).
+
+**Rationale:** The owner reported instinctively tapping a name in standings to see that person's
+day — the exact interaction the existing Calendar person-switcher plus day-tap flow already
+supports one screen over. Rather than inventing a second code path, threading `onOpenDay` through
+one more prop and one more call site keeps Today's "not yours" banner, inert controls, and unlock
+gesture as the single source of truth for what "viewing someone else" looks like.
+
+**Spec ref:** §8.3 (Today, own vs. other treatment), §8.5 (standings leaderboard).
+
+**Status:** RESOLVED — `onOpenDay` is a required prop; `App.tsx`'s call site (owned by the
+orchestrator, not this track) needs one line added:
+`onOpenDay={handleOpenDay}` on its `<StandingsScreen ... />` element.
+

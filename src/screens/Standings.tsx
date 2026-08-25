@@ -26,6 +26,7 @@ import {
   FONT_BODY,
   FONT_MONO,
   RADIUS,
+  TINT_STEP_CHECKED_ROW,
   TINT_STEP_LEADERBOARD_LEADER_ROW,
   TYPE_SCALE,
   paletteEntryFor,
@@ -47,6 +48,11 @@ interface StandingsScreenProps {
   rules: Rule[]
   users: User[]
   ownUserId: string
+  /** Opens the Today screen for `userId` on `date`, matching Calendar's `onOpenDay` signature
+   * exactly so App.tsx can wire both screens to the same handler. Leaderboard rows call this
+   * with `serverToday` — tapping a row opens that person's *current* day, not a historical one;
+   * Today.tsx's existing "not yours" read-only treatment takes over from there (spec §8.3). */
+  onOpenDay: (date: string, userId: string) => void
 }
 
 const MONTH_LONG_FORMATTER = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long' })
@@ -84,7 +90,9 @@ function enumerateMonths(startMonthKey: string, endMonthKey: string): string[] {
   return months
 }
 
-export function StandingsScreen({ theme, config, serverToday, rules, users, ownUserId }: StandingsScreenProps) {
+export function StandingsScreen({
+  theme, config, serverToday, rules, users, ownUserId, onOpenDay,
+}: StandingsScreenProps) {
   const challengeRange = { start: config.challenge_start, end: config.challenge_end }
   const currentMonthKey = getMonthKey(serverToday)
   const latestPickableMonth = compareDates(serverToday, config.challenge_end) <= 0
@@ -143,7 +151,14 @@ export function StandingsScreen({ theme, config, serverToday, rules, users, ownU
         <WeightSection theme={theme} config={config} weight={weight} />
       ) : (
         <>
-          <LeaderboardSection theme={theme} config={config} tab={tab} leaderboard={leaderboard} />
+          <LeaderboardSection
+            theme={theme}
+            config={config}
+            tab={tab}
+            leaderboard={leaderboard}
+            serverToday={serverToday}
+            onOpenDay={onOpenDay}
+          />
           <RibbonSection theme={theme} selectedMonth={selectedMonth} ribbon={ribbon} users={users} />
           <RadarSection
             theme={theme}
@@ -280,11 +295,15 @@ function LeaderboardSection({
   config,
   tab,
   leaderboard,
+  serverToday,
+  onOpenDay,
 }: {
   theme: ThemeSurfaces
   config: AppConfig
   tab: StandingsTab
   leaderboard: LeaderboardState
+  serverToday: string
+  onOpenDay: (date: string, userId: string) => void
 }) {
   const entries = leaderboard.data?.entries ?? []
   const topPoints = entries.reduce((max, entry) => Math.max(max, entry.points_total), 0)
@@ -315,6 +334,8 @@ function LeaderboardSection({
               staggerIndex={index}
               ambientEnabled={barMotion.enabled}
               ambientRevealed={barMotion.revealed}
+              serverToday={serverToday}
+              onOpenDay={onOpenDay}
             />
           ))
         )}
@@ -333,6 +354,11 @@ const LEADERBOARD_BAR_HEIGHT = 4
 const AMBIENT_BAR_STAGGER_STEP_MS = 60
 const AMBIENT_BAR_GROWTH_DURATION_MS = 700
 
+// Pressed-state tint duration — quick enough to read as a direct response to the tap, not a
+// separate animation (matches the bar's 600ms "grew because data changed" pacing, deliberately
+// faster).
+const PRESSED_TINT_TRANSITION_MS = 100
+
 function LeaderboardRow({
   theme,
   entry,
@@ -341,6 +367,8 @@ function LeaderboardRow({
   staggerIndex = 0,
   ambientEnabled = false,
   ambientRevealed = true,
+  serverToday,
+  onOpenDay,
 }: {
   theme: ThemeSurfaces
   entry: LeaderboardEntry
@@ -352,7 +380,10 @@ function LeaderboardRow({
   staggerIndex?: number
   ambientEnabled?: boolean
   ambientRevealed?: boolean
+  serverToday: string
+  onOpenDay: (date: string, userId: string) => void
 }) {
+  const [pressed, setPressed] = useState(false)
   const color = paletteEntryFor(entry.color_key).hex
   const isLeader = entry.rank === 1
   const barPercent = topPoints > 0 ? (entry.points_total / topPoints) * 100 : 0
@@ -361,14 +392,40 @@ function LeaderboardRow({
     ? `width ${AMBIENT_BAR_GROWTH_DURATION_MS}ms cubic-bezier(.16,1,.3,1) `
       + `${staggerIndex * AMBIENT_BAR_STAGGER_STEP_MS}ms`
     : 'width 600ms ease'
+  const leaderBackground = tint(color, theme, TINT_STEP_LEADERBOARD_LEADER_ROW)
+  const pressedBackground = tint(color, theme, TINT_STEP_CHECKED_ROW)
+  const restingBackground = isLeader ? leaderBackground : 'transparent'
+  const background = pressed ? pressedBackground : restingBackground
+
+  function handleClick() {
+    onOpenDay(serverToday, entry.user_id)
+  }
+
+  function handlePressStart() {
+    setPressed(true)
+  }
+
+  function handlePressEnd() {
+    setPressed(false)
+  }
 
   return (
-    <div
-      className="flex items-center gap-2.5"
+    <button
+      type="button"
+      onClick={handleClick}
+      onPointerDown={handlePressStart}
+      onPointerUp={handlePressEnd}
+      onPointerLeave={handlePressEnd}
+      onPointerCancel={handlePressEnd}
+      aria-label={`Open ${entry.display_name}'s day`}
+      className="w-full flex items-center gap-2.5 text-left"
       style={{
         padding: '11px 13px',
+        border: 'none',
         borderTop: isFirst ? 'none' : `1px solid ${theme.hairline}`,
-        background: isLeader ? tint(color, theme, TINT_STEP_LEADERBOARD_LEADER_ROW) : 'transparent',
+        background,
+        transition: `background-color ${PRESSED_TINT_TRANSITION_MS}ms ease`,
+        cursor: 'pointer',
       }}
     >
       <span
@@ -405,7 +462,7 @@ function LeaderboardRow({
       <span style={{ fontFamily: FONT_MONO, fontSize: 15, fontWeight: 600, color: theme.ink }}>
         {entry.points_total}
       </span>
-    </div>
+    </button>
   )
 }
 
