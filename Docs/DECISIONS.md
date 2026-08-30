@@ -658,3 +658,50 @@ made the call knowingly.
 
 **Status:** RESOLVED.
 
+### 2026-08-30 — Bug fix: Today screen's month cache always revalidates and merges, never replaces
+
+**Decision:** Fixed a bug where checkboxes checked on the Today screen appeared to disappear after
+switching tabs and back, even though the write had already reached the server (confirmed directly
+against production D1). Root cause: `TodayScreen`'s month cache (`logsByMonth` in
+`src/screens/Today.tsx`) is local state seeded once from bootstrap's `initialLogs`; `TabContent`
+unmounts `TodayScreen` on every tab switch, so returning re-ran the `useState` initializer against
+that same stale `initialLogs`, and the revalidation effect's `if (logsByMonth.has(cacheKey))
+return` guard then skipped ever correcting it for a month already "seen."
+
+Two changes, both scoped to files this track owns:
+
+1. `src/screens/Today.tsx`'s revalidation effect (previously ~line 148) now always fetches the
+   viewed month from the server on every mount/dependency-change, never gated on whether the cache
+   already has that key. It never blanks or clears the cache while the fetch is in flight or on
+   failure — whatever is already on screen (seeded or optimistic) stays exactly as-is until a fresh
+   answer actually arrives, so a checkbox never visibly flickers off.
+2. The fetch response is merged into the cache, not used to replace it outright, via the new pure
+   `mergeMonthCache` (exported from `Today.tsx`, covered by `Today.test.ts`). The server's answer
+   is the base (always authoritative, including server-computed points); any write still sitting in
+   `src/lib/offline/queue.ts`'s IndexedDB queue for the viewed person is re-applied on top per
+   `(log_date, rule_key)`, using the same `estimateRulePoints` the original optimistic toggle used.
+   A queued value always wins over the server's answer for that same slot, since the server
+   response necessarily predates that still-unsynced write. Added an additive export,
+   `pendingLogValuesFor(userId): Promise<Map<string, Record<string, number>>>`, to
+   `src/lib/offline/queue.ts` for reading queued log values back out — it folds `getAllQueuedOps`'s
+   already-FIFO order per date, so a later queued op for the same rule naturally overwrites an
+   earlier one, matching the queue's stated last-write-wins conflict rule. All six pinned exports of
+   `queue.ts` are unchanged.
+
+   The revalidation effect also re-subscribes to `subscribePendingCount` (an existing export) and
+   re-runs the same fetch+merge whenever the queue changes — in particular when a flush completes —
+   so once a queued write actually syncs, the screen settles onto the server's canonical values
+   (real points, not the estimate) without needing another tab switch.
+
+**Rationale:** the disappearing-checkbox symptom has two distinct causes that both had to be fixed
+together: a plain stale-cache bug (fixed by always revalidating) and a genuine data-loss risk
+(a naive "replace with the server's answer" fix would have erased real, unsynced, still-queued
+work — the same visible symptom, but for a real reason). Merging instead of replacing, with queued
+values winning, fixes both without the offline queue and the Today screen's cache ever disagreeing
+about which write is current.
+
+**Spec ref:** §8.3 (Today screen, ten-second logging constraint), §10 (offline queue, last-write-
+wins conflict rule).
+
+**Status:** RESOLVED.
+

@@ -306,6 +306,53 @@ describe('replay idempotency', () => {
   })
 })
 
+describe('pendingLogValuesFor', () => {
+  it('returns an empty map when nothing is queued', async () => {
+    const { queue } = await loadModules()
+
+    const pending = await queue.pendingLogValuesFor('alice')
+
+    expect(pending.size).toBe(0)
+  })
+
+  it('groups queued log values by date, for the requested user only', async () => {
+    const { api, queue } = await loadModules()
+    vi.mocked(api.putLog).mockRejectedValue(new TypeError('offline'))
+
+    await queue.queuedPutLog('alice', '2026-09-05', { water: 1 })
+    await queue.queuedPutLog('bob', '2026-09-05', { water: 1 })
+
+    const pending = await queue.pendingLogValuesFor('alice')
+
+    expect(pending.size).toBe(1)
+    expect(pending.get('2026-09-05')).toEqual({ water: 1 })
+  })
+
+  it('a later queued op for the same (date, rule) overwrites an earlier one — FIFO, last write wins', async () => {
+    const { api, queue } = await loadModules()
+    vi.mocked(api.putLog).mockRejectedValue(new TypeError('offline'))
+
+    await queue.queuedPutLog('alice', '2026-09-05', { water: 0 })
+    await queue.queuedPutLog('alice', '2026-09-05', { water: 1 })
+
+    const pending = await queue.pendingLogValuesFor('alice')
+
+    expect(pending.get('2026-09-05')).toEqual({ water: 1 })
+  })
+
+  it('merges distinct rule keys queued separately for the same date', async () => {
+    const { api, queue } = await loadModules()
+    vi.mocked(api.putLog).mockRejectedValue(new TypeError('offline'))
+
+    await queue.queuedPutLog('alice', '2026-09-05', { water: 1 })
+    await queue.queuedPutLog('alice', '2026-09-05', { steps: 2 })
+
+    const pending = await queue.pendingLogValuesFor('alice')
+
+    expect(pending.get('2026-09-05')).toEqual({ water: 1, steps: 2 })
+  })
+})
+
 describe('subscribePendingCount', () => {
   it('fires immediately with the current count and again after an enqueue', async () => {
     const { api, queue } = await loadModules()

@@ -122,6 +122,29 @@ async function broadcastPendingCount(): Promise<void> {
   for (const listener of pendingCountListeners) listener(count)
 }
 
+// ---------------------------------------------------------------------------
+// Reading queued log values back out
+// ---------------------------------------------------------------------------
+
+/** Queued (not yet synced) log values for `userId`, keyed by `log_date`, with the per-rule-key
+ * values from every queued 'log' op for that date merged together. `getAllQueuedOps` already
+ * returns ops oldest-first (the `by-seq` index), so folding them in that order means a later
+ * queued op for the same `(log_date, rule_key)` naturally overwrites an earlier one — the queue's
+ * stated last-write-wins conflict rule. Additive export: existing callers/signatures above are
+ * unchanged. Used by TodayScreen to keep an unsynced write visible when a server reconcile lands
+ * mid-flight, instead of letting the server's (necessarily incomplete) answer erase it. */
+export async function pendingLogValuesFor(userId: string): Promise<Map<string, Record<string, number>>> {
+  const records = await getAllQueuedOps<SyncOp>()
+  const result = new Map<string, Record<string, number>>()
+  for (const record of records) {
+    const op = record.op
+    if (op.op_type !== 'log' || op.user_id !== userId) continue
+    const existingForDate = result.get(op.log_date) ?? {}
+    result.set(op.log_date, { ...existingForDate, ...op.values })
+  }
+  return result
+}
+
 /** Registers `listener` for pending-count changes and fires it once immediately with the current
  * count, so a newly mounted indicator never shows a stale value. Returns an unsubscribe. */
 export function subscribePendingCount(listener: (count: number) => void): () => void {

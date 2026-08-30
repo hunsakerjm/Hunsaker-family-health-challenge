@@ -18,7 +18,12 @@ import { PendingIndicator } from '../components/PendingIndicator'
 import type { PersonSummary } from '../components/person'
 import { iconForRule } from '../lib/ruleIcons'
 import { findMostRecentEntry } from '../lib/weight'
-import { queuedPutLog, queuedPutWeight } from '../lib/offline/queue'
+import {
+  pendingLogValuesFor,
+  queuedPutLog,
+  queuedPutWeight,
+  subscribePendingCount,
+} from '../lib/offline/queue'
 import { WeightEntrySheet } from './WeightDetail'
 import {
   originFromPointerEvent,
@@ -142,25 +147,62 @@ export function TodayScreen({
     setSaveError(null)
   }, [date, viewedUserId])
 
-  // Fetch a month's logs the first time it's viewed for this person; bootstrap only ever seeds
-  // the current month (spec §9), so day navigation across a month boundary needs a fresh call.
+  // Revalidate this month's logs against the server every time this screen is viewed for this
+  // person — NOT just the first time. `logsByMonth` is local state, seeded once from bootstrap
+  // (spec §9) and never otherwise kept in sync, and `TabContent` unmounts `TodayScreen` on every
+  // tab switch. Re-running the old "only fetch if missing" guard on remount would re-run the
+  // `useState` initializer against that same stale `initialLogs` and then immediately bail out,
+  // which is exactly how a checked box could appear to disappear even though the write reached
+  // the server. So: always fetch, and merge the answer in rather than replacing the cache
+  // outright — see `mergeMonthCache` below for why a plain replace isn't safe either (it would
+  // erase a write still sitting in the offline queue, which is real, valid, unsynced work).
+  //
+  // Deliberately never clears or blanks `logsByMonth` while a fetch is in flight — the governing
+  // constraint (CLAUDE.md) is that a checked box fills instantly and stays filled; the seeded/
+  // optimistic values stay on screen the whole time, and only ever get reconciled forward once a
+  // fresh answer actually arrives.
   useEffect(() => {
-    if (logsByMonth.has(cacheKey)) return
     let cancelled = false
-    const { start, end } = getMonthBoundaries(monthKey)
-    getLogs({ userId: viewedUserId, from: start, to: end })
-      .then((entries) => {
+
+    async function revalidate() {
+      const { start, end } = getMonthBoundaries(monthKey)
+      try {
+        const [serverEntries, pending] = await Promise.all([
+          getLogs({ userId: viewedUserId, from: start, to: end }),
+          pendingLogValuesFor(viewedUserId),
+        ])
         if (cancelled) return
-        setLogsByMonth((prev) => new Map(prev).set(cacheKey, entries))
-      })
-      .catch(() => {
-        // Best-effort: leave the cache empty for this month rather than blocking the screen.
-        // The user still sees an accurate picture the moment connectivity returns.
-      })
+        setLogsByMonth((prev) => mergeMonthCache(prev, cacheKey, viewedUserId, rules, serverEntries, pending))
+      } catch {
+        // Best-effort: leave the cache exactly as it stands rather than blanking it. Whatever's
+        // on screen (seeded, optimistic, or from a prior successful revalidate) stays accurate
+        // enough; the next revalidate — another tab visit, or a flush completing below — corrects
+        // it once connectivity allows.
+      }
+    }
+
+    void revalidate()
+
+    // A queued write landing (flush success) means the server now has canonical values —
+    // including real points, where the queued entry only ever carried an estimate — for a date
+    // this merge previously had to patch with that estimate. Re-revalidating here is what lets
+    // the screen settle onto those canonical numbers without waiting for another tab switch.
+    // `subscribePendingCount` also fires once immediately on subscribe; skip that first call since
+    // `revalidate()` above already covers it.
+    let isFirstPendingNotification = true
+    const unsubscribe = subscribePendingCount(() => {
+      if (isFirstPendingNotification) {
+        isFirstPendingNotification = false
+        return
+      }
+      void revalidate()
+    })
+
     return () => {
       cancelled = true
+      unsubscribe()
     }
-  }, [cacheKey, monthKey, viewedUserId, logsByMonth])
+  }, [cacheKey, monthKey, viewedUserId, rules])
 
   if (!viewedUser || !ownUser) {
     return <MissingPersonNotice theme={theme} />
@@ -425,6 +467,64 @@ function upsertEntryInCache(
     (row) => !(row.log_date === entry.log_date && row.rule_key === entry.rule_key),
   )
   next.set(cacheKey, [...withoutThisRule, entry])
+  return next
+}
+
+function cacheEntryKey(logDate: string, ruleKey: string): string {
+  return `${logDate}${CACHE_KEY_SEPARATOR}${ruleKey}`
+}
+
+/** Reconciles one month's cache entry with a fresh server fetch. The server response is the base
+ * — it's always authoritative, including server-computed points (spec §4.3) — but any write still
+ * sitting in the offline queue for this user hasn't reached the server yet, so it's absent from
+ * that response. Naively replacing the cache with the server's answer would make that queued,
+ * unsynced work look identical to a lost write: the exact disappearing-checkbox bug, but for a
+ * real reason instead of a stale-cache one. So queued values are re-applied on top of the server
+ * base, per `(log_date, rule_key)`, using the same client-side estimate the original optimistic
+ * toggle used (`estimateRulePoints`).
+ *
+ * This is intentionally a merge, not a union: a queued rule value always wins over whatever the
+ * server said for that same `(log_date, rule_key)`, since the server's answer necessarily predates
+ * that still-unsynced write. Once the write actually syncs (queue flush → the pending-count
+ * subscription in the effect above → another call to this function), there is no longer a queued
+ * entry for it, so the server's real value and real points win — the estimate never lingers
+ * permanently. Exported for the pure-function merge tests (Today.test.ts); pure otherwise, no
+ * React or browser API. */
+export function mergeMonthCache(
+  map: Map<string, LogEntry[]>,
+  cacheKey: string,
+  userId: string,
+  rules: Rule[],
+  serverEntries: LogEntry[],
+  pendingByDate: Map<string, Record<string, number>>,
+): Map<string, LogEntry[]> {
+  const merged = new Map<string, LogEntry>()
+  for (const entry of serverEntries) {
+    merged.set(cacheEntryKey(entry.log_date, entry.rule_key), entry)
+  }
+
+  const nowIso = new Date().toISOString()
+  for (const [logDate, values] of pendingByDate) {
+    for (const [ruleKey, value] of Object.entries(values)) {
+      const rule = rules.find((candidate) => candidate.key === ruleKey)
+      const key = cacheEntryKey(logDate, ruleKey)
+      // No matching rule (e.g. it fell outside its effective window since the write was queued)
+      // falls back to whatever points the server base already had for this slot, or 0 if there
+      // was none — there's no better estimate available, and the next successful sync corrects it.
+      const estimatedPoints = rule ? estimateRulePoints(rule, value) : (merged.get(key)?.points ?? 0)
+      merged.set(key, {
+        user_id: userId,
+        log_date: logDate,
+        rule_key: ruleKey,
+        value,
+        points: estimatedPoints,
+        updated_at: nowIso,
+      })
+    }
+  }
+
+  const next = new Map(map)
+  next.set(cacheKey, [...merged.values()])
   return next
 }
 
