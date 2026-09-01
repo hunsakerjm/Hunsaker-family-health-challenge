@@ -14,6 +14,7 @@ import {
   Tooltip,
 } from 'recharts'
 import type { Rule, RuleStatsEntry } from '../../types'
+import { ownPersonFirst } from '../../lib/ordering'
 import { FONT_MONO, mix, paletteEntryFor, type ThemeSurfaces } from '../../theme'
 
 export interface RadarPerson {
@@ -27,7 +28,11 @@ interface HabitRadarProps {
   rules: readonly Rule[]
   entries: readonly RuleStatsEntry[]
   people: readonly RadarPerson[]
+  /** Display order — the caller already hoists the viewer's own person to index 0 here (spec
+   *  §8.5, owner request) so the chips/legend read "you first." Paint order is derived from this
+   *  below and is deliberately NOT the same order — see the comment at the render site. */
   selectedIds: readonly string[]
+  ownUserId: string
 }
 
 const CHART_HEIGHT = 232
@@ -79,10 +84,27 @@ function tooltipLabelFor(people: readonly RadarPerson[], personId: string): stri
 
 /** Spec §8.5: percent-of-days-hit per rule, never raw points — Movement's two blocks would
  * otherwise dominate the shape regardless of actual behavior (it's worth 2 pts/day). */
-export default function HabitRadar({ theme, rules, entries, people, selectedIds }: HabitRadarProps) {
+export default function HabitRadar({
+  theme, rules, entries, people, selectedIds, ownUserId,
+}: HabitRadarProps) {
   const data = buildRadarData(rules, entries, selectedIds)
   const fillOpacity = fillOpacityFor(selectedIds.length)
   const axisTickColor = mix(theme.muted, theme.surface, 0.45)
+
+  // Draw (paint) order deliberately differs from display order. `selectedIds` is already
+  // "own person first" for the chips/legend (spec §8.5, owner request), but Recharts paints
+  // later <Radar> elements OVER earlier ones, and fills are thin and semi-transparent as more
+  // people layer (0.32 → 0.20 → 0.10 — see FILL_OPACITY_BY_LAYER_COUNT above). Drawing in
+  // display order would put the viewer's own shape first, i.e. on the BOTTOM, buried under
+  // everyone else's fill — the opposite of why it's hoisted to the front in the first place.
+  // So here we move the own person's id to the END instead of the front: reverse the array,
+  // reuse the same `ownPersonFirst` hoist (own-to-front-of-the-reversed-array is own-to-back-of-
+  // the-original), then reverse back. Everyone else keeps their existing relative order either
+  // way. If the own person isn't in `selectedIds` at all, this is a no-op, same as `ownPersonFirst`.
+  //
+  // Do NOT "clean this up" by drawing in `selectedIds` order directly — that would silently
+  // re-bury the viewer's own polygon under everyone else's again.
+  const paintOrderIds = ownPersonFirst([...selectedIds].reverse(), ownUserId, (id) => id).reverse()
 
   return (
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -109,7 +131,7 @@ export default function HabitRadar({ theme, rules, entries, people, selectedIds 
           }}
           formatter={(value, name) => [`${String(value)}%`, tooltipLabelFor(people, String(name))]}
         />
-        {selectedIds.map((personId) => {
+        {paintOrderIds.map((personId) => {
           const person = people.find((p) => p.id === personId)
           if (!person) return null
           const color = paletteEntryFor(person.colorKey).hex

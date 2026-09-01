@@ -705,3 +705,37 @@ wins conflict rule).
 
 **Status:** RESOLVED.
 
+### 2026-09-01 — Owner request: own person hoisted first in radar chips, radar polygons, and ribbon rows
+
+**Decision:** On the Standings screen, the device's own person (`ownUserId`) now appears at index 0
+in three places: the radar's person-toggle chips, the array of ids handed to `HabitRadar` as
+`selectedIds`, and the ribbon's rows. This is a stable hoist, not a re-sort — every other person
+keeps their existing relative order, which is the server's `ORDER BY sort_order ASC, created_at
+ASC` (`functions/_lib/users.ts`, the manual order the owner controls in Settings → People). The
+leaderboard (rank order), the weight tab (biggest loss first), and the consistency list (most days
+logged first) are unchanged — those are performance-ordered on purpose and out of scope.
+
+The hoist is one generic, pure, exported helper, `ownPersonFirst<T>(items, ownUserId, getId)`
+(`src/lib/ordering.ts`, covered by `src/lib/ordering.test.ts`), used at all three call sites in
+`src/screens/Standings.tsx`. If the own person is absent from a given list (not in the challenge,
+archived, not selected), the helper is a no-op — no gap, no crash, no reordering of anyone else.
+
+The subtle part is `HabitRadar.tsx`: display order and paint order are deliberately different.
+Recharts paints later `<Radar>` elements over earlier ones, and fills thin as more people layer
+(0.32 → 0.20 → 0.10, spec §8.5), so simply drawing `selectedIds` in its now-own-first order would
+bury the viewer's own polygon on the bottom — the opposite of the intent. `HabitRadar` derives a
+separate `paintOrderIds` by reversing `selectedIds`, reusing `ownPersonFirst` (moving the own id to
+the front of the reversed array is the same as moving it to the back of the original), then
+reversing back — so the own person's polygon draws last and stays on top, while everyone else's
+relative draw order is untouched. Colors are unaffected either way since they're keyed to each
+person's `colorKey`, not to list position. `HabitRadar` gained one new prop, `ownUserId: string`,
+to make this determination by identity rather than by (fragile) array position.
+
+**Rationale:** the owner wants to find themselves instantly on a screen shared by ~8 people,
+without losing the readability of everyone else's shape underneath theirs, and without disturbing
+the three lists that are intentionally performance-ordered.
+
+**Spec ref:** §8.5 (standings: leaderboard, ribbon, radar, consistency, weight).
+
+**Status:** RESOLVED.
+

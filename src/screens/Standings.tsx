@@ -35,6 +35,7 @@ import {
   type ThemeSurfaces,
 } from '../theme'
 import { compareDates, getMonthBoundaries, getMonthKey } from '../lib/dates'
+import { ownPersonFirst } from '../lib/ordering'
 import { useAmbientMotion } from '../lib/useAmbientMotion'
 
 const HabitRadar = lazy(() => import('../components/charts/HabitRadar'))
@@ -159,13 +160,20 @@ export function StandingsScreen({
             serverToday={serverToday}
             onOpenDay={onOpenDay}
           />
-          <RibbonSection theme={theme} selectedMonth={selectedMonth} ribbon={ribbon} users={users} />
+          <RibbonSection
+            theme={theme}
+            selectedMonth={selectedMonth}
+            ribbon={ribbon}
+            users={users}
+            ownUserId={ownUserId}
+          />
           <RadarSection
             theme={theme}
             rules={rules}
             leaderboard={leaderboard}
             selectedPersonIds={selectedPersonIds}
             onTogglePerson={togglePerson}
+            ownUserId={ownUserId}
           />
           <ConsistencySection theme={theme} leaderboard={leaderboard} />
         </>
@@ -484,14 +492,19 @@ function RibbonSection({
   selectedMonth,
   ribbon,
   users,
+  ownUserId,
 }: {
   theme: ThemeSurfaces
   selectedMonth: string
   ribbon: RibbonState
   users: User[]
+  ownUserId: string
 }) {
   const emojiByUserId = new Map(users.map((u) => [u.id, u.emoji]))
-  const rows: RibbonRow[] = (ribbon.data?.users ?? []).map((row) => ({
+  const orderedRows = ownPersonFirst(ribbon.data?.users ?? [], ownUserId, (row) => row.user_id)
+  // Own person first (spec §8.5, owner request): a stable hoist over the server's own
+  // sort_order/created_at order, not a re-sort — everyone else keeps their relative position.
+  const rows: RibbonRow[] = orderedRows.map((row) => ({
     ...row,
     emoji: emojiByUserId.get(row.user_id) ?? null,
   }))
@@ -542,18 +555,25 @@ function RadarSection({
   leaderboard,
   selectedPersonIds,
   onTogglePerson,
+  ownUserId,
 }: {
   theme: ThemeSurfaces
   rules: Rule[]
   leaderboard: LeaderboardState
   selectedPersonIds: string[]
   onTogglePerson: (userId: string) => void
+  ownUserId: string
 }) {
   const entries = leaderboard.data?.entries ?? []
   const people: RadarPerson[] = entries.map((e) => ({
     id: e.user_id, displayName: e.display_name, colorKey: e.color_key,
   }))
   const validSelectedIds = selectedPersonIds.filter((id) => people.some((p) => p.id === id))
+  // Own person first (spec §8.5, owner request) in both the chip row and the ids handed to the
+  // chart — a stable hoist, not a re-sort. HabitRadar itself flips this back for *paint* order so
+  // the viewer's own polygon isn't buried under everyone else's fill (see its own comment).
+  const orderedEntries = ownPersonFirst(entries, ownUserId, (e) => e.user_id)
+  const orderedSelectedIds = ownPersonFirst(validSelectedIds, ownUserId, (id) => id)
 
   return (
     <div style={{ marginTop: 22 }}>
@@ -570,14 +590,15 @@ function RadarSection({
               rules={rules}
               entries={leaderboard.ruleStats.entries}
               people={people}
-              selectedIds={validSelectedIds}
+              selectedIds={orderedSelectedIds}
+              ownUserId={ownUserId}
             />
           </Suspense>
         )}
       </Card>
 
       <div className="flex flex-wrap" style={{ gap: 5, marginTop: 10 }}>
-        {entries.map((entry) => (
+        {orderedEntries.map((entry) => (
           <PersonChip
             key={entry.user_id}
             theme={theme}
