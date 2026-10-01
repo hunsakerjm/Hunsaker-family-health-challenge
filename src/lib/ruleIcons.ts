@@ -11,7 +11,9 @@ import {
   Droplet,
   Dumbbell,
   Footprints,
+  HeartPulse,
   Moon,
+  PersonStanding,
   Utensils,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,6 +25,8 @@ const RULE_ICONS: Record<string, LucideIcon> = {
   activity: Activity,
   dumbbell: Dumbbell,
   footprints: Footprints,
+  'heart-pulse': HeartPulse,
+  'person-standing': PersonStanding,
 }
 
 const FALLBACK_RULE_ICON: LucideIcon = Circle
