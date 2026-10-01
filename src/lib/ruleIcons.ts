@@ -10,6 +10,7 @@ import {
   Circle,
   Droplet,
   Dumbbell,
+  Footprints,
   Moon,
   Utensils,
   type LucideIcon,
@@ -21,6 +22,7 @@ const RULE_ICONS: Record<string, LucideIcon> = {
   utensils: Utensils,
   activity: Activity,
   dumbbell: Dumbbell,
+  footprints: Footprints,
 }
 
 const FALLBACK_RULE_ICON: LucideIcon = Circle
