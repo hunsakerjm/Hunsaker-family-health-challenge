@@ -183,6 +183,7 @@ interface RuleEditSheetProps {
 function RuleEditSheet({ theme, serverToday, existing, onClose, onCreated, onUpdated }: RuleEditSheetProps) {
   const defaultEffectiveFrom = defaultRuleEffectiveFrom(serverToday)
   const [label, setLabel] = useState(existing?.label ?? '')
+  const [shortLabel, setShortLabel] = useState(existing?.short_label ?? '')
   const [category, setCategory] = useState(existing?.category ?? 'General')
   const [type, setType] = useState<RuleType>(existing?.type ?? 'boolean')
   const [points, setPoints] = useState(existing?.points ?? 1)
@@ -220,8 +221,10 @@ function RuleEditSheet({ theme, serverToday, existing, onClose, onCreated, onUpd
     setError(null)
     try {
       const config = configForType(type, counterMax, thresholdUnit, thresholdValue, thresholdCompare)
+      const trimmedShortLabel = shortLabel.trim()
       const shared = {
         label: label.trim(),
+        short_label: trimmedShortLabel.length > 0 ? trimmedShortLabel : null,
         category: category.trim() || 'General',
         type,
         config,
@@ -252,6 +255,15 @@ function RuleEditSheet({ theme, serverToday, existing, onClose, onCreated, onUpd
       message={(
         <div>
           <TextField theme={theme} label="Label" value={label} onChange={setLabel} />
+          <TextField
+            theme={theme}
+            label="Short label (chart)"
+            value={shortLabel}
+            onChange={setShortLabel}
+          />
+          <SettingsHint theme={theme}>
+            Shown on the radar chart; leave blank to use the label.
+          </SettingsHint>
           <TextField theme={theme} label="Category" value={category} onChange={setCategory} />
           <RuleTypeField theme={theme} value={type} onChange={setType} />
           <NumberField theme={theme} label="Points" value={points} onChange={setPoints} />
