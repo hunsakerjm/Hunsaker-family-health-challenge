@@ -1,7 +1,7 @@
 import type { Env } from '../_lib/env'
 import { computeServerTodayInTimezone } from '../_lib/dates'
 import { loadPublicConfig } from '../_lib/appConfig'
-import { parseRuleRow, type RuleRow } from '../_lib/rules'
+import { loadAllRules, parseRuleRow, type RuleRow } from '../_lib/rules'
 import { loadAllUsers } from '../_lib/users'
 import { loadLogEntriesForRange } from '../_lib/logs'
 import { getMonthBoundaries, getMonthKey } from '../../src/lib/dates'
@@ -18,6 +18,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const config = await loadPublicConfig(env.DB)
   const serverToday = computeServerTodayInTimezone(config.timezone)
   const rules = await loadEffectiveRules(env.DB, serverToday)
+  const allRules = await loadAllRules(env.DB)
   const users = await loadAllUsers(env.DB)
   const { start, end } = getMonthBoundaries(getMonthKey(serverToday))
   const logs = await loadLogEntriesForRange(env.DB, start, end)
@@ -26,6 +27,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     config,
     serverToday,
     rules,
+    all_rules: allRules,
     users,
     logs,
   }

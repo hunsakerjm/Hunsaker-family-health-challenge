@@ -382,7 +382,7 @@ function TabContent({
         config={bootstrap.config}
         serverToday={bootstrap.serverToday}
         initialDate={pendingTodayTarget?.date}
-        rules={bootstrap.rules}
+        rules={bootstrap.all_rules ?? bootstrap.rules}
         users={bootstrap.users}
         ownUserId={activeUserId}
         viewedUserId={viewedUserId}

@@ -27,6 +27,7 @@ import {
   stepMonthKey,
   isDateInRange,
   maxPointsForDate,
+  rulesEffectiveOnDate,
   type RuleForMaxPoints,
 } from './dates'
 
@@ -299,6 +300,45 @@ describe('maxPointsForDate (spec §4.3) — never hardcode 6, 181, or 1086', () 
     const allRules = [...sixLaunchRules, newRule]
     expect(maxPointsForDate(allRules, '2026-10-31')).toBe(6)
     expect(maxPointsForDate(allRules, '2026-11-01')).toBe(7)
+  })
+})
+
+describe('rulesEffectiveOnDate', () => {
+  function windowRule(overrides: Partial<RuleForMaxPoints> = {}): RuleForMaxPoints {
+    return {
+      type: 'boolean',
+      points: 1,
+      config: {},
+      effective_from: null,
+      effective_to: null,
+      enabled: true,
+      ...overrides,
+    }
+  }
+
+  const endingRule = windowRule({ effective_to: '2026-09-30' })
+  const startingRule = windowRule({ effective_from: '2026-10-01' })
+
+  it('includes a rule through its inclusive effective_to date and drops it after', () => {
+    expect(rulesEffectiveOnDate([endingRule], '2026-09-29')).toEqual([endingRule])
+    expect(rulesEffectiveOnDate([endingRule], '2026-09-30')).toEqual([endingRule])
+    expect(rulesEffectiveOnDate([endingRule], '2026-10-01')).toEqual([])
+  })
+
+  it('excludes a rule before its effective_from date and includes it from that date', () => {
+    expect(rulesEffectiveOnDate([startingRule], '2026-09-30')).toEqual([])
+    expect(rulesEffectiveOnDate([startingRule], '2026-10-01')).toEqual([startingRule])
+  })
+
+  it('excludes disabled rules even inside their window', () => {
+    const disabledRule = windowRule({ enabled: false })
+    expect(rulesEffectiveOnDate([disabledRule], '2026-09-30')).toEqual([])
+  })
+
+  it('swaps the rule set across a boundary day', () => {
+    const rules = [endingRule, startingRule]
+    expect(rulesEffectiveOnDate(rules, '2026-09-30')).toEqual([endingRule])
+    expect(rulesEffectiveOnDate(rules, '2026-10-01')).toEqual([startingRule])
   })
 })
 

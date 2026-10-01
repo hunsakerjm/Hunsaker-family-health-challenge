@@ -309,6 +309,10 @@ export interface BootstrapResponse {
   config: AppConfig
   serverToday: string // YYYY-MM-DD, computed server-side in the challenge timezone — spec §6
   rules: Rule[]
+  // Every rule (enabled or not, any window), so Today can show the rules in effect on whichever
+  // date is being viewed. Optional so a response from an older deploy still type-checks; readers
+  // fall back to `rules`.
+  all_rules?: Rule[]
   users: User[]
   logs: LogEntry[] // current month's logs, spec §9
 }

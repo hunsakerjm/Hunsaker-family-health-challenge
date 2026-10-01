@@ -40,6 +40,7 @@ import {
   getMonthKey,
   isDateEditable,
   maxPointsForDate,
+  rulesEffectiveOnDate,
 } from '../lib/dates'
 import {
   FONT_BODY,
@@ -76,11 +77,8 @@ interface TodayScreenProps {
    * opens that day's log"). Defaults to `serverToday` so the normal Today-tab entry point, and
    * the ten-second logging path, are unchanged. */
   initialDate?: string
-  /** Rules effective "now," per spec §9's bootstrap contract. Known Phase 2a limitation: if a
-   * rule's effective window starts or ends between `serverToday` and a backfilled/future date
-   * being viewed, this list won't reflect that — bootstrap only ever returns today's set. The
-   * server (PUT /api/logs) always scores correctly regardless; only this client-side row list can
-   * momentarily be stale across a rule boundary. See Docs/PHASE2A_LOG.md. */
+  /** Every rule, any window. Today narrows it to the viewed date itself (rulesEffectiveOnDate);
+   * the full list is also used to resolve logged entries whose rule has since been retired. */
   rules: Rule[]
   users: User[]
   ownUserId: string
@@ -139,6 +137,8 @@ export function TodayScreen({
     () => logsByMonth.get(cacheKey) ?? [],
     [logsByMonth, cacheKey],
   )
+
+  const rulesForDate = useMemo(() => rulesEffectiveOnDate(rules, date), [rules, date])
 
   // A rule's effective window (and therefore max points) can only change per calendar date, not
   // per view — reset any stale unlock/error state whenever the viewed date or person changes.
@@ -388,7 +388,7 @@ export function TodayScreen({
         <RuleList
           theme={theme}
           reducedMotion={reducedMotion}
-          rules={rules}
+          rules={rulesForDate}
           dayValues={dayValues}
           color={viewedPalette.hex}
           onColor={viewedPalette.on}

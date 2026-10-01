@@ -220,9 +220,16 @@ export function ruleWindowStatus(
   return 'active'
 }
 
-function isRuleEffectiveOnDate(rule: RuleForMaxPoints, date: string): boolean {
+export function isRuleEffectiveOnDate(rule: RuleForMaxPoints, date: string): boolean {
   if (!rule.enabled) return false
   return ruleWindowStatus(rule, date) === 'active'
+}
+
+export function rulesEffectiveOnDate<T extends RuleForMaxPoints>(
+  rules: readonly T[],
+  date: string,
+): T[] {
+  return rules.filter((rule) => isRuleEffectiveOnDate(rule, date))
 }
 
 function maxPointsForRule(rule: RuleForMaxPoints): number {
