@@ -207,11 +207,22 @@ export type RuleForMaxPoints = Pick<
   'type' | 'points' | 'config' | 'effective_from' | 'effective_to' | 'enabled'
 >
 
+export type RuleWindowStatus = 'active' | 'upcoming' | 'ended'
+
+// Window only, ignoring `enabled`: the Settings rules list needs to tell "starts later" and
+// "already ended" apart from "disabled".
+export function ruleWindowStatus(
+  rule: Pick<Rule, 'effective_from' | 'effective_to'>,
+  date: string,
+): RuleWindowStatus {
+  if (rule.effective_from !== null && compareDates(date, rule.effective_from) < 0) return 'upcoming'
+  if (rule.effective_to !== null && compareDates(date, rule.effective_to) > 0) return 'ended'
+  return 'active'
+}
+
 function isRuleEffectiveOnDate(rule: RuleForMaxPoints, date: string): boolean {
   if (!rule.enabled) return false
-  if (rule.effective_from !== null && compareDates(date, rule.effective_from) < 0) return false
-  if (rule.effective_to !== null && compareDates(date, rule.effective_to) > 0) return false
-  return true
+  return ruleWindowStatus(rule, date) === 'active'
 }
 
 function maxPointsForRule(rule: RuleForMaxPoints): number {

@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { createRule, updateRule, ApiError } from '../../api'
 import { daysRuleWouldOpen, defaultRuleEffectiveFrom, isRuleBackdated } from '../../lib/settingsHelpers'
+import { ruleWindowStatus, type RuleWindowStatus } from '../../lib/dates'
 import { RADIUS, TYPE_SCALE, type ThemeSurfaces } from '../../theme'
 import { ReorderableList } from './ReorderableList'
 import {
@@ -23,6 +24,7 @@ interface RulesSectionProps {
 }
 
 const ROW_HEIGHT = 52
+const OUTSIDE_WINDOW_OPACITY = 0.55
 const GENERIC_ERROR = 'Could not save. Check your connection and try again.'
 const RULE_TYPE_LABELS: Record<RuleType, string> = {
   boolean: 'Checkbox', counter: 'Counter', threshold: 'Threshold',
@@ -57,6 +59,7 @@ export function RulesSection({
           <RuleRow
             theme={theme}
             rule={rule}
+            serverToday={serverToday}
             onTap={() => setEditingId(rule.id)}
             onToggleEnabled={(enabled) => updateRule(rule.id, { enabled }).then(onRuleUpdated).catch(() => {})}
           />
@@ -89,10 +92,11 @@ export function RulesSection({
 }
 
 function RuleRow({
-  theme, rule, onTap, onToggleEnabled,
+  theme, rule, serverToday, onTap, onToggleEnabled,
 }: {
   theme: ThemeSurfaces
   rule: Rule
+  serverToday: string
   onTap: () => void
   onToggleEnabled: (next: boolean) => void
 }) {
@@ -101,22 +105,33 @@ function RuleRow({
     onToggleEnabled(!rule.enabled)
   }
 
+  const windowStatus = ruleWindowStatus(rule, serverToday)
+  const isOutsideWindow = windowStatus !== 'active'
+  const isMuted = !rule.enabled || isOutsideWindow
+  const rowStyle = {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '6px 0',
+    opacity: isOutsideWindow ? OUTSIDE_WINDOW_OPACITY : 1,
+  }
+
   return (
     <button
       type="button"
       onClick={onTap}
       className="w-full flex items-center gap-2.5 text-left"
-      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0' }}
+      style={rowStyle}
     >
       <div className="flex-1 min-w-0">
         <div
           className="truncate"
-          style={{ ...TYPE_SCALE.bodyCopy, color: rule.enabled ? theme.ink : theme.muted }}
+          style={{ ...TYPE_SCALE.bodyCopy, color: isMuted ? theme.muted : theme.ink }}
         >
           {rule.label}
         </div>
         <div style={{ ...TYPE_SCALE.caption, color: theme.muted, marginTop: 1 }}>
-          {RULE_TYPE_LABELS[rule.type]} · +{rule.points} · {effectiveWindowLabel(rule)}
+          {RULE_TYPE_LABELS[rule.type]} · +{rule.points} · {effectiveWindowLabel(rule, windowStatus)}
         </div>
       </div>
       <div onClick={handleToggleClick}>
@@ -126,7 +141,9 @@ function RuleRow({
   )
 }
 
-function effectiveWindowLabel(rule: Rule): string {
+function effectiveWindowLabel(rule: Rule, windowStatus: RuleWindowStatus): string {
+  if (windowStatus === 'upcoming') return `Starts ${rule.effective_from}`
+  if (windowStatus === 'ended') return `Ended ${rule.effective_to}`
   if (rule.effective_from === null && rule.effective_to === null) return 'always'
   if (rule.effective_to === null) return `from ${rule.effective_from}`
   if (rule.effective_from === null) return `until ${rule.effective_to}`
@@ -173,7 +190,10 @@ function RuleEditSheet({ theme, serverToday, existing, onClose, onCreated, onUpd
   const [thresholdUnit, setThresholdUnit] = useState(configString(existing, 'unit', ''))
   const [thresholdValue, setThresholdValue] = useState(configNumber(existing, 'threshold', 0))
   const [thresholdCompare, setThresholdCompare] = useState<CompareOp>(configCompare(existing))
-  const [effectiveFrom, setEffectiveFrom] = useState(existing?.effective_from ?? defaultEffectiveFrom)
+  // Only a NEW rule gets the tomorrow default. An existing rule keeps its real start (null =
+  // "always" = empty field), otherwise a label-only edit would silently move the start date.
+  const initialEffectiveFrom = existing ? (existing.effective_from ?? '') : defaultEffectiveFrom
+  const [effectiveFrom, setEffectiveFrom] = useState(initialEffectiveFrom)
   const [effectiveTo, setEffectiveTo] = useState(existing?.effective_to ?? '')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)

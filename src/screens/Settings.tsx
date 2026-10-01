@@ -2,7 +2,8 @@
 // owner asked to move behind a disclosure each, so the everyday items (This device, Password) lead
 // the screen. This file owns no routing; see the file header note in Docs/PHASE3C_LOG.md for the
 // exact prop contract the App.tsx orchestrator wires in.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { listRules } from '../api'
 import { PeopleSection } from './settings/PeopleSection'
 import { RulesSection } from './settings/RulesSection'
 import { ChallengeSection } from './settings/ChallengeSection'
@@ -48,6 +49,23 @@ export function SettingsScreen({
   const [localRules, setLocalRules] = useState(rules)
   const [localConfig, setLocalConfig] = useState(config)
   const [openAdminSection, setOpenAdminSection] = useState<AdminSectionKey | null>(null)
+
+  // Bootstrap only carries rules effective today, so future-dated and ended rules would be
+  // invisible here. Load the full list when the Rules section opens; on failure keep the
+  // bootstrap list. localRules stays Settings-only: Today reads bootstrap.rules, refreshed via
+  // onDataChanged, so non-effective rules never reach it.
+  useEffect(() => {
+    if (openAdminSection !== 'rules') return
+    let isCancelled = false
+    listRules()
+      .then((allRules) => {
+        if (!isCancelled) setLocalRules(allRules)
+      })
+      .catch(() => {})
+    return () => {
+      isCancelled = true
+    }
+  }, [openAdminSection])
 
   function handleUserCreated(user: User) {
     setLocalUsers((prev) => [...prev, user])
